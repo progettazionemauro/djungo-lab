@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Djungo Playground — Protocol Console</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 980px; margin: 24px auto; padding: 0 16px; }
+    h1 { margin: 0 0 8px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { font-size: 12px; opacity: .8; display:block; margin-bottom: 4px; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 10px; }
+    textarea { min-height: 90px; }
+    .card { border: 1px solid #ddd; border-radius: 14px; padding: 14px; margin: 12px 0; }
+    button { padding: 10px 12px; border-radius: 10px; border: 1px solid #333; background: #fff; cursor:pointer; }
+    button.primary { background:#111; color:#fff; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+    .muted { opacity: .75; }
+    .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; border:1px solid #ddd; font-size: 12px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Djungo Playground <span class="pill">protocol console</span></h1>
+  <p class="muted">
+    Three modes: <b>Mock</b> (no network), <b>Live view</b> (public), <b>Live CRUD</b> (apiKey).
+  </p>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>WEB_APP_URL</label>
+        <input id="webAppUrl" placeholder="https://script.google.com/macros/s/DEPLOY_ID/exec" />
+      </div>
+      <div>
+        <label>apiKey (only for CRUD)</label>
+        <input id="apiKey" placeholder="Djungo-Test-..." />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Mode</label>
+        <select id="mode">
+          <option value="view">view (public)</option>
+          <option value="test">test</option>
+          <option value="getById">getById</option>
+          <option value="insert">insert</option>
+          <option value="update">update</option>
+          <option value="delete">delete</option>
+        </select>
+      </div>
+      <div>
+        <label>Run mode</label>
+        <select id="runMode">
+          <option value="mock">Mock (simulate)</option>
+          <option value="live">Live (real request)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <div>
+        <label>id (for getById/update/delete)</label>
+        <input id="id" type="number" min="1" step="1" placeholder="e.g. 7" />
+      </div>
+      <div>
+        <label>limit (for view)</label>
+        <input id="limit" type="number" min="1" max="200" step="1" value="20" />
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <label>Payload fields (for insert/update) — JSON</label>
+      <textarea id="payload" placeholder='{"anno":"2020","contesto":"REPUTAZIONE / BRAND","attivita":"...","partiInteressate":"...","obiettivoAnte":"...","swotAnte":"50 - MEDIA DEBOLEZZA (I)"}'></textarea>
+    </div>
+
+    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="primary" id="btnBuild">Build URL</button>
+      <button id="btnRun">Run</button>
+      <button id="btnClear">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Generated URL</h3>
+    <div id="urlOut" class="mono"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Response / Simulation</h3>
+    <div id="respOut" class="mono"></div>
+  </div>
+
+<script>
+  // IMPORTANT: JSONP requires a global callback function name.
+  // We'll generate a unique callback each run to avoid cache / collisions.
+  function makeCbName() {
+    return "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
+  }
+
+  function setOut(el, text) { el.textContent = text || ""; }
+
+  function buildUrl() {
+    const WEB_APP_URL = document.getElementById("webAppUrl").value.trim();
+    const API_KEY = document.getElementById("apiKey").value.trim();
+    const mode = document.getElementById("mode").value;
+    const id = (document.getElementById("id").value || "").trim();
+    const limit = (document.getElementById("limit").value || "").trim();
+    const payloadTxt = document.getElementById("payload").value.trim();
+
+    if (!WEB_APP_URL) throw new Error("Missing WEB_APP_URL");
+
+    const cbName = makeCbName();
+    const u = new URL(WEB_APP_URL);
+    u.searchParams.set("mode", mode);
+    u.searchParams.set("cb", cbName);
+    u.searchParams.set("_", Date.now().toString()); // cache-bust
+
+    if (mode === "view") u.searchParams.set("limit", limit || "20");
+    if (["getById","update","delete"].includes(mode)) u.searchParams.set("id", id);
+
+    // CRUD modes require apiKey
+    if (["getById","insert","update","delete"].includes(mode)) {
+      u.searchParams.set("apiKey", API_KEY);
+    }
+
+    // insert / update accept fields as query params (your GAS code expects this)
+    if (["insert","update"].includes(mode)) {
+      if (payloadTxt) {
+        let obj;
+        try { obj = JSON.parse(payloadTxt); }
+        catch { throw new Error("Payload is not valid JSON"); }
+
+        Object.entries(obj).forEach(([k,v]) => {
+          u.searchParams.set(k, (v ?? "").toString());
+        });
+      }
+    }
+
+    return { url: u.toString(), cbName };
+  }
+
+  function jsonpRequest(url, cbName) {
+    return new Promise((resolve, reject) => {
+      // Create callback globally
+      window[cbName] = (data) => {
+        try { resolve(data); }
+        finally {
+          // cleanup
+          delete window[cbName];
+          script.remove();
+        }
+      };
+
+      const script = document.createElement("script");
+      script.src = url;
+      script.onerror = () => {
+        delete window[cbName];
+        script.remove();
+        reject(new Error("JSONP network/script error"));
+      };
+
+      document.head.appendChild(script);
+    });
+  }
+
+  function mockResponse(mode) {
+    // Minimal mock to practice without touching backend
+    if (mode === "view") {
+      return {
+        ok: true,
+        headers: ["ID","Anno","Contesto"],
+        rows: [
+          [1,"2020","REPUTAZIONE / BRAND"],
+          [2,"2021","MERCATO / CONCORRENZA"]
+        ],
+        mocked: true
+      };
+    }
+    if (mode === "test") return { ok: true, msg: "OK test", mocked: true };
+    if (mode === "getById") return { ok: true, id: 7, record: { "Anno":"2020", "SWOT (Ante)":"50 - MEDIA DEBOLEZZA (I)" }, mocked: true };
+    if (mode === "insert") return { ok: true, id: 123, mocked: true };
+    if (mode === "update") return { ok: true, id: 7, updatedRow: 9, mocked: true };
+    if (mode === "delete") return { ok: true, id: 7, deletedRow: 9, mocked: true };
+    return { ok: false, error: "Unknown mock mode", mocked: true };
+  }
+
+  const urlOut = document.getElementById("urlOut");
+  const respOut = document.getElementById("respOut");
+
+  document.getElementById("btnBuild").addEventListener("click", () => {
+    try {
+      const { url } = buildUrl();
+      setOut(urlOut, url);
+      setOut(respOut, "");
+    } catch (e) {
+      setOut(respOut, "ERROR: " + e.message);
+    }
+  });
+
+  document.getElementById("btnRun").addEventListener("click", async () => {
+    try {
+      const runMode = document.getElementById("runMode").value;
+      const mode = document.getElementById("mode").value;
+
+      const { url, cbName } = buildUrl();
+      setOut(urlOut, url);
+
+      if (runMode === "mock") {
+        const data = mockResponse(mode);
+        setOut(respOut, JSON.stringify(data, null, 2));
+        return;
+      }
+
+      const data = await jsonpRequest(url, cbName);
+      setOut(respOut, JSON.stringify(data, null, 2));
+
+    } catch (e) {
+      setOut(respOut, "ERROR: " + e.message);
+    }
+  });
+
+  document.getElementById("btnClear").addEventListener("click", () => {
+    setOut(urlOut, "");
+    setOut(respOut, "");
+  });
+</script>
+</body>
+</html>
