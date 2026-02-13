@@ -1,1 +1,161 @@
 
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Djungo Console — Part 6</title>
+<style>
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 980px; margin: 28px auto; padding: 0 16px; }
+  h1 { margin: 0 0 8px; }
+  .muted { opacity: .75; }
+  .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; margin: 12px 0; }
+  label { display:block; margin: 10px 0 6px; font-size: 12px; opacity:.85; }
+  input, select { width:100%; padding:10px; border:1px solid #ccc; border-radius:10px; }
+  button { padding:10px 12px; border-radius:10px; border:1px solid #111; background:#111; color:#fff; cursor:pointer; }
+  pre { background:#0b0b0b; color:#d6ffd6; border-radius:12px; padding:12px; overflow:auto; }
+  .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+</style>
+</head>
+<body>
+
+<h1>Djungo Console <span class="muted">— Part 6</span></h1>
+<div class="muted">Protocol simulator: build URL → mock/live JSONP → inspect response.</div>
+
+<div class="card">
+  <label>WEB_APP_URL (Apps Script Web App)</label>
+  <input id="webAppUrl" placeholder="https://script.google.com/macros/s/XXXXX/exec" />
+
+  <div class="row">
+    <div>
+      <label>part</label>
+      <select id="part">
+        <option value="6" selected>6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+      </select>
+    </div>
+    <div>
+      <label>mode</label>
+      <select id="mode">
+        <option value="test" selected>test</option>
+        <option value="echo">echo</option>
+        <option value="meta">meta</option>
+        <option value="view">view</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label>runType</label>
+      <select id="runType">
+        <option value="mock" selected>mock</option>
+        <option value="live">live</option>
+      </select>
+    </div>
+    <div>
+      <label>limit (only for view)</label>
+      <input id="limit" type="number" min="1" max="200" value="20" />
+    </div>
+  </div>
+
+  <div style="margin-top:12px;">
+    <button id="runBtn">Run</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="muted">Generated URL</div>
+  <pre id="urlOut"></pre>
+</div>
+
+<div class="card">
+  <div class="muted">Response</div>
+  <pre id="respOut"></pre>
+</div>
+
+<script>
+  function makeCbName() {
+    return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+  }
+
+  function mockResponse(mode, part, limit) {
+    if (mode === "test") return { ok:true, msg:"Mock OK test", part:Number(part) };
+    if (mode === "echo") return { ok:true, part:Number(part), receivedParams:{ part:String(part), mode:"echo" } };
+    if (mode === "meta") return { ok:true, part:Number(part), publicModes:["test","echo","meta","view"], version:"mock" };
+    if (mode === "view") return { ok:true, part:Number(part), headers:["ID","Anno","Contesto"], rows:[[1,"2020","REPUTAZIONE / BRAND"]], limit:Number(limit) };
+    return { ok:false, error:"Unknown mock mode" };
+  }
+
+  function buildUrl() {
+    const base = document.getElementById("webAppUrl").value.trim();
+    if (!base) throw new Error("Missing WEB_APP_URL");
+
+    const part = document.getElementById("part").value;
+    const mode = document.getElementById("mode").value;
+    const limit = document.getElementById("limit").value;
+
+    const cb = makeCbName();
+    const u = new URL(base);
+    u.searchParams.set("part", part);
+    u.searchParams.set("mode", mode);
+    u.searchParams.set("cb", cb);
+    u.searchParams.set("_", Date.now().toString());
+
+    if (mode === "view") u.searchParams.set("limit", limit || "20");
+
+    return { url: u.toString(), cb };
+  }
+
+  function jsonpRequest(url, cbName) {
+    return new Promise((resolve, reject) => {
+      window[cbName] = (data) => {
+        try { resolve(data); }
+        finally {
+          delete window[cbName];
+          script.remove();
+        }
+      };
+
+      const script = document.createElement("script");
+      script.src = url;
+      script.onerror = () => {
+        delete window[cbName];
+        script.remove();
+        reject(new Error("JSONP load/network error"));
+      };
+
+      document.head.appendChild(script);
+    });
+  }
+
+  const urlOut = document.getElementById("urlOut");
+  const respOut = document.getElementById("respOut");
+
+  document.getElementById("runBtn").addEventListener("click", async () => {
+    try {
+      const runType = document.getElementById("runType").value;
+      const part = document.getElementById("part").value;
+      const mode = document.getElementById("mode").value;
+      const limit = document.getElementById("limit").value;
+
+      const { url, cb } = buildUrl();
+      urlOut.textContent = url;
+
+      if (runType === "mock") {
+        respOut.textContent = JSON.stringify(mockResponse(mode, part, limit), null, 2);
+        return;
+      }
+
+      const data = await jsonpRequest(url, cb);
+      respOut.textContent = JSON.stringify(data, null, 2);
+
+    } catch (e) {
+      respOut.textContent = "ERROR: " + e.message;
+    }
+  });
+</script>
+
+</body>
+</html>
