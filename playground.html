@@ -191,14 +191,30 @@
   const respOut = document.getElementById("respOut");
 
   document.getElementById("btnBuild").addEventListener("click", () => {
-    try {
-      const { url } = buildUrl();
-      setOut(urlOut, url);
+  try {
+    const runMode = document.getElementById("runMode").value;
+    const mode = document.getElementById("mode").value;
+
+    if (runMode === "mock") {
+      const fakeUrl =
+        `mock://djungo-console?mode=${encodeURIComponent(mode)}&limit=` +
+        encodeURIComponent((document.getElementById("limit").value || "20").trim()) +
+        `&id=${encodeURIComponent((document.getElementById("id").value || "").trim())}` +
+        `&_=${Date.now()}`;
+
+      setOut(urlOut, fakeUrl);
       setOut(respOut, "");
-    } catch (e) {
-      setOut(respOut, "ERROR: " + e.message);
+      return;
     }
-  });
+
+    const { url } = buildUrl();
+    setOut(urlOut, url);
+    setOut(respOut, "");
+  } catch (e) {
+    setOut(respOut, "ERROR: " + e.message);
+  }
+});
+
 
   document.getElementById("btnRun").addEventListener("click", async () => {
   try {
