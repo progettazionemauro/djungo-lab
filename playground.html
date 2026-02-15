@@ -201,26 +201,37 @@
   });
 
   document.getElementById("btnRun").addEventListener("click", async () => {
-    try {
-      const runMode = document.getElementById("runMode").value;
-      const mode = document.getElementById("mode").value;
+  try {
+    const runMode = document.getElementById("runMode").value;
+    const mode = document.getElementById("mode").value;
 
-      const { url, cbName } = buildUrl();
-      setOut(urlOut, url);
+    // ✅ MOCK: non richiede WEB_APP_URL
+    if (runMode === "mock") {
+      const fakeUrl =
+        `mock://djungo-console?mode=${encodeURIComponent(mode)}&limit=` +
+        encodeURIComponent((document.getElementById("limit").value || "20").trim()) +
+        `&id=${encodeURIComponent((document.getElementById("id").value || "").trim())}` +
+        `&_=${Date.now()}`;
 
-      if (runMode === "mock") {
-        const data = mockResponse(mode);
-        setOut(respOut, JSON.stringify(data, null, 2));
-        return;
-      }
+      setOut(urlOut, fakeUrl);
 
-      const data = await jsonpRequest(url, cbName);
+      const data = mockResponse(mode);
       setOut(respOut, JSON.stringify(data, null, 2));
-
-    } catch (e) {
-      setOut(respOut, "ERROR: " + e.message);
+      return;
     }
-  });
+
+    // ✅ LIVE: qui l'URL è obbligatorio (buildUrl lo verifica)
+    const { url, cbName } = buildUrl();
+    setOut(urlOut, url);
+
+    const data = await jsonpRequest(url, cbName);
+    setOut(respOut, JSON.stringify(data, null, 2));
+
+  } catch (e) {
+    setOut(respOut, "ERROR: " + e.message);
+  }
+});
+
 
   document.getElementById("btnClear").addEventListener("click", () => {
     setOut(urlOut, "");
