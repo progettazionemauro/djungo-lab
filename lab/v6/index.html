@@ -133,28 +133,46 @@
   const urlOut = document.getElementById("urlOut");
   const respOut = document.getElementById("respOut");
 
-  document.getElementById("runBtn").addEventListener("click", async () => {
-    try {
-      const runType = document.getElementById("runType").value;
-      const part = document.getElementById("part").value;
-      const mode = document.getElementById("mode").value;
-      const limit = document.getElementById("limit").value;
+ document.getElementById("runBtn").addEventListener("click", async () => {
+  try {
+    const runType = document.getElementById("runType").value;
+    const part = document.getElementById("part").value;
+    const mode = document.getElementById("mode").value;
+    const limit = document.getElementById("limit").value;
 
-      const { url, cb } = buildUrl();
-      urlOut.textContent = url;
+    // =========================
+    // MOCK MODE
+    // =========================
+    if (runType === "mock") {
 
-      if (runType === "mock") {
-        respOut.textContent = JSON.stringify(mockResponse(mode, part, limit), null, 2);
-        return;
-      }
+      const fakeUrl =
+        `mock://djungo-console?part=${encodeURIComponent(part)}` +
+        `&mode=${encodeURIComponent(mode)}` +
+        `&limit=${encodeURIComponent(limit)}` +
+        `&_=${Date.now()}`;
 
-      const data = await jsonpRequest(url, cb);
-      respOut.textContent = JSON.stringify(data, null, 2);
+      urlOut.textContent = fakeUrl;
 
-    } catch (e) {
-      respOut.textContent = "ERROR: " + e.message;
+      const mockData = mockResponse(mode, part, limit);
+      respOut.textContent = JSON.stringify(mockData, null, 2);
+
+      return;
     }
-  });
+
+    // =========================
+    // LIVE MODE
+    // =========================
+    const { url, cb } = buildUrl();   // SOLO QUI serve WEB_APP_URL
+    urlOut.textContent = url;
+
+    const data = await jsonpRequest(url, cb);
+    respOut.textContent = JSON.stringify(data, null, 2);
+
+  } catch (e) {
+    respOut.textContent = "ERROR: " + e.message;
+  }
+});
+
 </script>
 
 </body>
