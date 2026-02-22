@@ -26,6 +26,12 @@ DJUNGO — VERSIONING RULE (IMPORTANT)
   pre { background:#0b0b0b; color:#d6ffd6; border-radius:12px; padding:12px; overflow:auto; }
   .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
   a { color: inherit; }
+
+  /* =========================================================
+     UI helpers
+     - .hidden: per nascondere blocchi UI in LIVE
+  ========================================================= */
+  .hidden { display:none !important; }
 </style>
 </head>
 
@@ -42,6 +48,13 @@ DJUNGO — VERSIONING RULE (IMPORTANT)
   Protocol console: build URL → run mock/live JSONP → inspect response.
 </div>
 
+<!-- =========================================================
+FORM CARD
+- WEB_APP_URL: serve solo in LIVE
+- runType:
+    * mock  = training console (tutti i mode)
+    * live  = production console (view-only, mode nascosto)
+========================================================= -->
 <div class="card">
   <label>WEB_APP_URL (Apps Script Web App)</label>
 
@@ -64,14 +77,13 @@ DJUNGO-EDIT (BACKEND URL)
       </select>
     </div>
 
-    <div>
+    <!-- =========================================================
+    MODE COLUMN (MOCK ONLY)
+    - In LIVE questa colonna deve sparire del tutto.
+    - Per questo la mettiamo in un wrapper con id="modeCol".
+    ========================================================= -->
+    <div id="modeCol">
       <label>mode (mock only)</label>
-
-      <!-- =========================================================
-DJUNGO RULE (MODE LIST)
-- Questa lista deve essere coerente con backend Part 7 (route_).
-- In LIVE questa select viene DISABILITATA e forzata a "view".
-========================================================= -->
       <select id="mode">
         <option value="test" selected>test</option>
         <option value="echo">echo</option>
@@ -95,12 +107,16 @@ DJUNGO RULE (MODE LIST)
     </div>
   </div>
 
-  <!-- Mini-istruzioni (super short, ma salvano la UX) -->
-  <div class="muted" style="margin-top:10px; line-height:1.35;">
-    <div><b>How to use (Part 7):</b></div>
-    <div><b>mock</b> = training: all modes available (test/echo/meta/schema/validate/view).</div>
-    <div><b>live</b> = production: locked to <b>view</b> only (reads last rows from the sheet).</div>
-    <div style="margin-top:6px;">Mock quick guide: test=health • echo=params • meta=capabilities • schema=contract • validate=parse JSON • view=read rows</div>
+  <!-- =========================================================
+USER INSTRUCTIONS (readable, short)
+- Queste righe sono ciò che l’utente “vede e capisce”.
+========================================================= -->
+  <div class="muted" style="margin-top:10px; line-height:1.45;">
+    <div><b>How to use this playground (Part 7):</b></div>
+    <div>1) Start with <b>mock</b> to learn the protocol without network.</div>
+    <div>2) In <b>mock</b> you can switch <b>mode</b>: test / echo / meta / schema / validate / view.</div>
+    <div>3) When ready, switch to <b>live</b>: the console becomes <b>view-only</b> and reads the last rows from your Google Sheet.</div>
+    <div>4) In <b>live</b>, paste the correct Web App URL ending with <b>/exec</b>, then click <b>Run</b>.</div>
   </div>
 
   <div style="margin-top:12px;">
@@ -108,6 +124,9 @@ DJUNGO RULE (MODE LIST)
   </div>
 </div>
 
+<!-- =========================================================
+OUTPUT PANELS
+========================================================= -->
 <div class="card">
   <div class="muted">Generated URL</div>
   <pre id="urlOut"></pre>
@@ -120,15 +139,8 @@ DJUNGO RULE (MODE LIST)
 
 <script>
 /* ============================================================
-DJUNGO — LOCKED PART (THIS FILE = Part 7)
-
-ISTRUZIONI PER TE (AUTORE):
-- Quando crei Part 8:
-  1) duplica lab/v7 -> lab/v8
-  2) cambia LAB_PART = 8
-  3) aggiorna BACK_PART = 7
-  4) aggiorna (se serve) ALLOWED_MODES in base alla nuova Part
-- Non aggiungere dropdown "part": la Part è la cartella.
+SECTION 1 — PAGE IDENTITY (Part-based lock)
+- Questo file è la Part 7: NON deve fingere di essere altro.
 ============================================================ */
 const LAB_PART  = 7;
 const BACK_PART = 6;
@@ -146,38 +158,44 @@ const ALLOWED_MODES = ["test", "echo", "meta", "schema", "validate", "view"];
 })();
 
 /* ============================================================
-JSONP CORE
-- JSONP vuole un nome funzione globale: cb=qualcosa
-- Nome unico ad ogni run, così eviti caching/collisioni.
+SECTION 2 — JSONP CORE
+- JSONP richiede cb=<funzioneGlobale>
+- Usiamo un nome unico ad ogni run per evitare collisioni/caching.
 ============================================================ */
 function makeCbName() {
   return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
 }
 
 /* ============================================================
-UI BEHAVIOR: MOCK vs LIVE
-- MOCK: training console => mode + payload abilitati
-- LIVE: production => view-only (mode disabilitato, payload disabilitato)
+SECTION 3 — UI SYNC: MOCK vs LIVE
+Regola UX:
+- MOCK = training console (mode visibile + payload attivo)
+- LIVE = production console (mode colonna nascosta + payload disabilitato)
 ============================================================ */
 function syncUiByRunType_() {
   const runType = document.getElementById("runType").value;
 
-  const modeEl = document.getElementById("mode");
-  const limitEl = document.getElementById("limit");
-  const payloadEl = document.getElementById("payload");
+  const modeCol  = document.getElementById("modeCol");
+  const modeEl   = document.getElementById("mode");
+  const limitEl  = document.getElementById("limit");
+  const payloadEl= document.getElementById("payload");
 
   if (runType === "live") {
-    // LIVE locked
+    // LIVE: view-only
     modeEl.value = "view";
-    modeEl.disabled = true;
 
+    // nascondi completamente il blocco mode
+    modeCol.classList.add("hidden");
+
+    // limit rimane utile
     limitEl.disabled = false;
 
+    // payload non serve in live
     payloadEl.value = "";
     payloadEl.disabled = true;
   } else {
-    // MOCK training
-    modeEl.disabled = false;
+    // MOCK: training
+    modeCol.classList.remove("hidden");
     payloadEl.disabled = false;
   }
 }
@@ -186,14 +204,28 @@ document.getElementById("runType").addEventListener("change", syncUiByRunType_);
 syncUiByRunType_();
 
 /* ============================================================
-MOCK RESPONSES (DIDATTICI)
-- In mock vedrai SEMPRE "mock://..." come URL: è normale.
+SECTION 4 — MOCK RESPONSES (training-only)
+- Qui l’utente “impara” i mode senza backend.
+- validate è robusto: se JSON non valido, NON crasha.
 ============================================================ */
 function mockResponse(mode, limit, payloadTxt) {
   if (mode === "test") return { ok:true, msg:"Mock OK test", part:LAB_PART };
-  if (mode === "echo") return { ok:true, part:LAB_PART, receivedParams:{ part:String(LAB_PART), mode:"echo" } };
-  if (mode === "meta") return { ok:true, part:LAB_PART, allowedModes:ALLOWED_MODES, backend:"mock" };
-  if (mode === "schema") return { ok:true, part:LAB_PART, schema:{ params:["part","mode","cb","_","limit","payload"], modes:ALLOWED_MODES } };
+
+  if (mode === "echo") {
+    return { ok:true, part:LAB_PART, receivedParams:{ part:String(LAB_PART), mode:"echo" } };
+  }
+
+  if (mode === "meta") {
+    return { ok:true, part:LAB_PART, allowedModes:ALLOWED_MODES, backend:"mock" };
+  }
+
+  if (mode === "schema") {
+    return {
+      ok:true,
+      part:LAB_PART,
+      schema:{ params:["part","mode","cb","_","limit","payload"], modes:ALLOWED_MODES }
+    };
+  }
 
   if (mode === "validate") {
     if (!payloadTxt) return { ok:true, part:LAB_PART, valid:true, msg:"No payload provided (valid by default)", payload:null };
@@ -218,13 +250,13 @@ function mockResponse(mode, limit, payloadTxt) {
 }
 
 /* ============================================================
-BUILD URL (LIVE ONLY) — PRODUCTION LOCKED
-- LIVE è view-only:
-  part  = LAB_PART
-  mode  = view (forzato)
-  cb    = callback JSONP
-  _     = cache-bust
-  limit = opzionale (default 20)
+SECTION 5 — LIVE URL BUILDER (production-only)
+Regola: LIVE = view-only
+- part  = LAB_PART
+- mode  = view (forzato)
+- cb    = JSONP callback
+- _     = cache-bust
+- limit = (default 20)
 ============================================================ */
 function buildUrlLive_() {
   const base = document.getElementById("webAppUrl").value.trim();
@@ -246,8 +278,8 @@ function buildUrlLive_() {
 }
 
 /* ============================================================
-JSONP REQUEST (LIVE)
-- Carichiamo <script src="..."> e aspettiamo che richiami window[cb]
+SECTION 6 — JSONP REQUEST (live network call)
+- Carica <script src="..."> e aspetta window[cb](data)
 ============================================================ */
 function jsonpRequest(url, cbName) {
   return new Promise((resolve, reject) => {
@@ -272,6 +304,11 @@ function jsonpRequest(url, cbName) {
   });
 }
 
+/* ============================================================
+SECTION 7 — RUN BUTTON (orchestrator)
+- MOCK: usa mockResponse()
+- LIVE: chiama GAS (view-only)
+============================================================ */
 const urlOut  = document.getElementById("urlOut");
 const respOut = document.getElementById("respOut");
 
@@ -279,9 +316,6 @@ document.getElementById("runBtn").addEventListener("click", async () => {
   try {
     const runType = document.getElementById("runType").value;
 
-    // =========================
-    // MOCK MODE (no backend)
-    // =========================
     if (runType === "mock") {
       const mode  = document.getElementById("mode").value;
       const limit = document.getElementById("limit").value;
@@ -300,9 +334,7 @@ document.getElementById("runBtn").addEventListener("click", async () => {
       return;
     }
 
-    // =========================
-    // LIVE MODE (backend) — view-only
-    // =========================
+    // LIVE (view-only)
     const { url, cb } = buildUrlLive_();
     urlOut.textContent = url;
 
@@ -317,4 +349,3 @@ document.getElementById("runBtn").addEventListener("click", async () => {
 
 </body>
 </html>
-
