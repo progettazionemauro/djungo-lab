@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 
 <!-- =========================================================
-     DJUNGO-EDIT (SERIE / PART)
-     - Cambia SOLO questo titolo ad ogni articolo.
-     - Regola: Part N -> aggiorna Title + H1 + eventuale testo introduttivo.
-     - Esempio:
-       Part 6  -> "Djungo Console — Part 6"
-       Part 7  -> "Djungo Console — Part 7"
-       ...
+DJUNGO — VERSIONING RULE (IMPORTANT)
+- Ogni lezione vive in una cartella dedicata:
+  lab/v6/index.html  -> Part 6
+  lab/v7/index.html  -> Part 7
+  ...
+- Questa pagina DEVE rappresentare SOLO la Part di questa cartella.
+- NON permettiamo di scegliere "part" da UI (evita confusione e mismatch).
 ========================================================= -->
-<title>Djungo Console — Part 6</title>
+<title>Djungo Console</title>
 
 <style>
   body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 980px; margin: 28px auto; padding: 0 16px; }
@@ -25,65 +25,58 @@
   button { padding:10px 12px; border-radius:10px; border:1px solid #111; background:#111; color:#fff; cursor:pointer; }
   pre { background:#0b0b0b; color:#d6ffd6; border-radius:12px; padding:12px; overflow:auto; }
   .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  a { color: inherit; }
 </style>
 </head>
 <body>
 
-<!-- =========================================================
-     DJUNGO-EDIT (SERIE / PART)
-     - Cambia SOLO "Part 6" qui dentro quando pubblichi la prossima.
-========================================================= -->
-<h1>Djungo Console <span class="muted">— Part 6</span></h1>
+<h1 id="h1Title">Djungo Console <span class="muted">— Part ?</span></h1>
 
-<!-- =========================================================
-     DJUNGO-EDIT (COPERTINA ARTICOLO)
-     - Qui puoi cambiare la descrizione per allinearla al tema dell'articolo.
-     - Non serve ogni volta, ma aiuta a "ancorare" il lettore.
-========================================================= -->
-<div class="muted">Protocol simulator: build URL → mock/live JSONP → inspect response.</div>
+<!-- Link SOLO all’indietro: niente link al futuro -->
+<div class="muted" style="margin-top:6px;">
+  ← Back to previous lesson: <a id="backLink" href="../v6/index.html">Part 6</a>
+</div>
+
+<div class="muted" id="subtitle" style="margin-top:10px;">
+  Protocol console: build URL → run mock/live JSONP → inspect response.
+</div>
 
 <div class="card">
   <label>WEB_APP_URL (Apps Script Web App)</label>
 
   <!-- =========================================================
-       DJUNGO-EDIT (DEPLOY URL)
-       - In produzione puoi pre-compilare value="https://script.google.com/macros/s/....../exec"
-       - Oppure lasciarlo vuoto e lo inserisce il lettore.
-       - Importante: per MOCK non serve; per LIVE serve.
-  ========================================================= -->
-  <input id="webAppUrl" placeholder="https://script.google.com/macros/s/XXXXX/exec" />
+DJUNGO-EDIT (BACKEND URL)
+- LIVE MODE: serve la Web App URL pubblicata (finisce con /exec)
+  Esempio: https://script.google.com/macros/s/DEPLOY_ID/exec
+- MOCK MODE: non serve. Puoi lasciarla vuota.
+- ERRORE tipico: incollare la "Library URL" o link da editor.
+  Quella NON è eseguibile come Web App per JSONP.
+========================================================= -->
+  <input id="webAppUrl" placeholder="https://script.google.com/macros/s/DEPLOY_ID/exec" />
 
   <div class="row">
     <div>
-      <label>part</label>
-
-      <!-- =========================================================
-           DJUNGO-EDIT (PART LIST)
-           - All'inizio mostri 6/7/8 per far capire evoluzione.
-           - Più avanti nella serie puoi estendere:
-             <option value="9">9</option> ... fino a 30
-           - Regola: NON cambiare la logica JS: aggiorna solo le option.
-      ========================================================= -->
-      <select id="part">
-        <option value="6" selected>6</option>
-        <option value="7">7</option>
-        <option value="8">8</option>
+      <label>runType</label>
+      <select id="runType">
+        <option value="mock" selected>mock (no network)</option>
+        <option value="live">live (real backend)</option>
       </select>
     </div>
     <div>
       <label>mode</label>
 
       <!-- =========================================================
-           DJUNGO-EDIT (MODES DISPONIBILI)
-           - Part 6: test/echo/meta/view
-           - Nei prossimi articoli, quando aggiungerai insert/update/delete,
-             AGGIUNGI qui i nuovi mode.
-           - Coerenza: i mode devono esistere anche nel backend (route_).
-      ========================================================= -->
+DJUNGO RULE (MODE LIST)
+- Questa lista deve essere coerente con backend Part 7 (route_).
+- Se nel backend aggiungi un nuovo mode (es. "schema"),
+  lo aggiungi qui.
+========================================================= -->
       <select id="mode">
         <option value="test" selected>test</option>
         <option value="echo">echo</option>
         <option value="meta">meta</option>
+        <option value="schema">schema</option>
+        <option value="validate">validate</option>
         <option value="view">view</option>
       </select>
     </div>
@@ -91,15 +84,12 @@
 
   <div class="row">
     <div>
-      <label>runType</label>
-      <select id="runType">
-        <option value="mock" selected>mock</option>
-        <option value="live">live</option>
-      </select>
-    </div>
-    <div>
       <label>limit (only for view)</label>
       <input id="limit" type="number" min="1" max="200" value="20" />
+    </div>
+    <div>
+      <label>payload (only for validate) — JSON</label>
+      <input id="payload" placeholder='{"limit":20}' />
     </div>
   </div>
 
@@ -119,133 +109,170 @@
 </div>
 
 <script>
-  // =========================================================
-  // DJUNGO NOTE
-  // JSONP requires a global callback name.
-  // We generate unique cb to avoid collisions and caching weirdness.
-  // =========================================================
-  function makeCbName() {
-    return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+/* ============================================================
+DJUNGO — LOCKED PART (THIS FILE = Part 7)
+
+ISTRUZIONI PER TE (AUTORE):
+- Quando crei Part 8:
+  1) duplica lab/v7 -> lab/v8
+  2) cambia LAB_PART = 8
+  3) aggiorna BACK_PART = 7
+  4) aggiorna la lista ALLOWED_MODES in base alla nuova Part
+- Non aggiungere dropdown "part": la Part è la cartella.
+============================================================ */
+const LAB_PART  = 7;     // <<< CAMBIA SOLO QUANDO DUPLICHI LA CARTELLA (v8 -> 8)
+const BACK_PART = 6;     // <<< Part precedente (link retroattivo)
+
+const ALLOWED_MODES = ["test", "echo", "meta", "schema", "validate", "view"];
+
+(function initPageIdentity(){
+  document.title = `Djungo Console — Part ${LAB_PART}`;
+  document.querySelector("#h1Title").innerHTML =
+    `Djungo Console <span class="muted">— Part ${LAB_PART}</span>`;
+  const back = document.querySelector("#backLink");
+  back.textContent = `Part ${BACK_PART}`;
+  back.href = `../v${BACK_PART}/index.html`;
+})();
+
+/* ============================================================
+JSONP CORE
+- JSONP vuole un nome funzione globale: cb=qualcosa
+- Noi generiamo un nome unico ad ogni run, così eviti caching/collisioni.
+============================================================ */
+function makeCbName() {
+  return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+}
+
+/* ============================================================
+MOCK RESPONSES (DIDATTICI)
+- Servono per esercitarsi senza backend.
+- In mock vedrai SEMPRE "mock://..." come URL: è normale.
+============================================================ */
+function mockResponse(mode, limit, payloadTxt) {
+  if (mode === "test") return { ok:true, msg:"Mock OK test", part:LAB_PART };
+  if (mode === "echo") return { ok:true, part:LAB_PART, receivedParams:{ part:String(LAB_PART), mode:"echo" } };
+  if (mode === "meta") return { ok:true, part:LAB_PART, allowedModes:ALLOWED_MODES, backend:"mock" };
+  if (mode === "schema") return { ok:true, part:LAB_PART, schema:{ params:["part","mode","cb","limit"], modes:ALLOWED_MODES } };
+  if (mode === "validate") return { ok:true, part:LAB_PART, valid:true, payload: payloadTxt ? JSON.parse(payloadTxt) : null };
+  if (mode === "view") return { ok:true, part:LAB_PART, headers:["ID","Anno","Contesto"], rows:[[1,"2020","REPUTAZIONE / BRAND"]], limit:Number(limit) };
+  return { ok:false, error:"Unknown mock mode", part:LAB_PART, mode };
+}
+
+/* ============================================================
+BUILD URL (LIVE ONLY)
+- Qui costruiamo la vera URL per la Web App GAS (/exec).
+- Parametri minimi del protocollo:
+  part  = versione backend (qui bloccata: LAB_PART)
+  mode  = azione
+  cb    = callback JSONP
+  _     = cache-bust
+- Parametri opzionali:
+  limit (solo view)
+  payload (solo validate) -> lo passiamo come stringa (query param)
+============================================================ */
+function buildUrlLive_() {
+  const base = document.getElementById("webAppUrl").value.trim();
+  if (!base) throw new Error("Missing WEB_APP_URL (required in LIVE)");
+
+  const mode  = document.getElementById("mode").value;
+  const limit = document.getElementById("limit").value;
+  const payloadTxt = document.getElementById("payload").value.trim();
+
+  if (!ALLOWED_MODES.includes(mode)) {
+    throw new Error(`Mode "${mode}" is not available in Part ${LAB_PART}`);
   }
 
-  // =========================================================
-  // DJUNGO-EDIT (MOCK PAYLOADS)
-  // - Quando evolvi il protocollo, aggiorna i mock per "simulare" Part future.
-  // - Regola: MOCK deve essere didattico, non "realistico".
-  // =========================================================
-  function mockResponse(mode, part, limit) {
-    if (mode === "test") return { ok:true, msg:"Mock OK test", part:Number(part) };
-    if (mode === "echo") return { ok:true, part:Number(part), receivedParams:{ part:String(part), mode:"echo" } };
-    if (mode === "meta") return { ok:true, part:Number(part), publicModes:["test","echo","meta","view"], version:"mock" };
-    if (mode === "view") return { ok:true, part:Number(part), headers:["ID","Anno","Contesto"], rows:[[1,"2020","REPUTAZIONE / BRAND"]], limit:Number(limit) };
-    return { ok:false, error:"Unknown mock mode" };
+  const cb = makeCbName();
+  const u = new URL(base);
+
+  u.searchParams.set("part", String(LAB_PART));
+  u.searchParams.set("mode", mode);
+  u.searchParams.set("cb", cb);
+  u.searchParams.set("_", Date.now().toString());
+
+  if (mode === "view") u.searchParams.set("limit", limit || "20");
+
+  // validate: passiamo il payload come query param "payload"
+  // (Scelta didattica: in futuro potrai fare validate su campi singoli.)
+  if (mode === "validate" && payloadTxt) {
+    // NOTA: payload deve essere JSON valido
+    JSON.parse(payloadTxt);
+    u.searchParams.set("payload", payloadTxt);
   }
 
-  function buildUrl() {
-    const base = document.getElementById("webAppUrl").value.trim();
+  return { url: u.toString(), cb };
+}
 
-    // =========================================================
-    // DJUNGO RULE (IMPORTANT)
-    // - In LIVE mode il base URL è obbligatorio.
-    // - In MOCK mode non lo chiediamo.
-    // =========================================================
-    if (!base) throw new Error("Missing WEB_APP_URL");
-
-    const part = document.getElementById("part").value;
-    const mode = document.getElementById("mode").value;
-    const limit = document.getElementById("limit").value;
-
-    const cb = makeCbName();
-    const u = new URL(base);
-
-    // =========================================================
-    // DJUNGO CORE PROTOCOL
-    // part -> selects the backend branch (route by part)
-    // mode -> selects the action inside that part
-    // cb   -> defines JSONP execution context (callback function)
-    // _    -> cache-bust
-    // =========================================================
-    u.searchParams.set("part", part);
-    u.searchParams.set("mode", mode);
-    u.searchParams.set("cb", cb);
-    u.searchParams.set("_", Date.now().toString());
-
-    // limit is only meaningful for view
-    if (mode === "view") u.searchParams.set("limit", limit || "20");
-
-    return { url: u.toString(), cb };
-  }
-
-  function jsonpRequest(url, cbName) {
-    return new Promise((resolve, reject) => {
-      window[cbName] = (data) => {
-        try { resolve(data); }
-        finally {
-          delete window[cbName];
-          script.remove();
-        }
-      };
-
-      const script = document.createElement("script");
-      script.src = url;
-      script.onerror = () => {
+/* ============================================================
+JSONP REQUEST (LIVE)
+- Carichiamo <script src="..."> e aspettiamo che richiami window[cb]
+============================================================ */
+function jsonpRequest(url, cbName) {
+  return new Promise((resolve, reject) => {
+    window[cbName] = (data) => {
+      try { resolve(data); }
+      finally {
         delete window[cbName];
         script.remove();
-        reject(new Error("JSONP load/network error"));
-      };
-
-      document.head.appendChild(script);
-    });
-  }
-
-  const urlOut = document.getElementById("urlOut");
-  const respOut = document.getElementById("respOut");
-
-  document.getElementById("runBtn").addEventListener("click", async () => {
-    try {
-      const runType = document.getElementById("runType").value;
-      const part = document.getElementById("part").value;
-      const mode = document.getElementById("mode").value;
-      const limit = document.getElementById("limit").value;
-
-      // =========================
-      // MOCK MODE (no WEB_APP_URL)
-      // =========================
-      if (runType === "mock") {
-
-        // =========================================================
-        // DJUNGO-EDIT (FAKE URL)
-        // - Questa url mock è didattica: fa capire i parametri senza rete.
-        // =========================================================
-        const fakeUrl =
-          `mock://djungo-console?part=${encodeURIComponent(part)}` +
-          `&mode=${encodeURIComponent(mode)}` +
-          `&limit=${encodeURIComponent(limit)}` +
-          `&_=${Date.now()}`;
-
-        urlOut.textContent = fakeUrl;
-
-        const mockData = mockResponse(mode, part, limit);
-        respOut.textContent = JSON.stringify(mockData, null, 2);
-
-        return;
       }
+    };
 
-      // =========================
-      // LIVE MODE (requires WEB_APP_URL)
-      // =========================
-      const { url, cb } = buildUrl();   // SOLO QUI serve WEB_APP_URL
-      urlOut.textContent = url;
+    const script = document.createElement("script");
+    script.src = url;
+    script.onerror = () => {
+      delete window[cbName];
+      script.remove();
+      reject(new Error("JSONP load/network error (check: /exec URL + deployment access)"));
+    };
 
-      const data = await jsonpRequest(url, cb);
-      respOut.textContent = JSON.stringify(data, null, 2);
-
-    } catch (e) {
-      respOut.textContent = "ERROR: " + e.message;
-    }
+    document.head.appendChild(script);
   });
+}
 
+const urlOut  = document.getElementById("urlOut");
+const respOut = document.getElementById("respOut");
+
+document.getElementById("runBtn").addEventListener("click", async () => {
+  try {
+    const runType = document.getElementById("runType").value;
+    const mode  = document.getElementById("mode").value;
+    const limit = document.getElementById("limit").value;
+    const payloadTxt = document.getElementById("payload").value.trim();
+
+    // =========================
+    // MOCK MODE (no backend)
+    // =========================
+    if (runType === "mock") {
+      const fakeUrl =
+        `mock://djungo-console?part=${encodeURIComponent(String(LAB_PART))}` +
+        `&mode=${encodeURIComponent(mode)}` +
+        `&limit=${encodeURIComponent(limit)}` +
+        `&_=${Date.now()}`;
+
+      urlOut.textContent = fakeUrl;
+
+      const data = mockResponse(mode, limit, payloadTxt || "");
+      respOut.textContent = JSON.stringify(data, null, 2);
+      return;
+    }
+
+    // =========================
+    // LIVE MODE (backend)
+    // =========================
+    const { url, cb } = buildUrlLive_();
+    urlOut.textContent = url;
+
+    const data = await jsonpRequest(url, cb);
+    respOut.textContent = JSON.stringify(data, null, 2);
+
+  } catch (e) {
+    respOut.textContent = "ERROR: " + e.message;
+  }
+});
 </script>
+
+</body>
+</html>
 
 </body>
 </html>
