@@ -1,1 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 
+<!-- =========================================================
+DJUNGO — VERSIONING RULE (IMPORTANT)
+- Ogni lezione vive in una cartella dedicata:
+  lab/v6/index.html  -> Part 6
+  lab/v7/index.html  -> Part 7
+  ...
+- Questa pagina DEVE rappresentare SOLO la Part di questa cartella.
+- NON permettiamo di scegliere "part" da UI (evita confusione e mismatch).
+========================================================= -->
+<title>Djungo Console — Part 9</title>
+
+<style>
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 980px; margin: 28px auto; padding: 0 16px; }
+  h1 { margin: 0 0 8px; }
+  .muted { opacity: .75; }
+  .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; margin: 12px 0; }
+  label { display:block; margin: 10px 0 6px; font-size: 12px; opacity:.85; }
+  input, select { width:100%; padding:10px; border:1px solid #ccc; border-radius:10px; }
+  button { padding:10px 12px; border-radius:10px; border:1px solid #111; background:#111; color:#fff; cursor:pointer; }
+  pre { background:#0b0b0b; color:#d6ffd6; border-radius:12px; padding:12px; overflow:auto; }
+  .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  a { color: inherit; }
+
+  /* =========================================================
+     UI helpers
+     - .hidden: per nascondere blocchi UI in LIVE
+  ========================================================= */
+  .hidden { display:none !important; }
+</style>
+</head>
+
+<body>
+
+<h1 id="h1Title">Djungo Console <span class="muted">— Part ?</span></h1>
+
+<!-- Link SOLO all’indietro: niente link al futuro -->
+<div class="muted" style="margin-top:6px;">
+  ← Back to previous playground: <a id="backLink" href="../v6/index.html">Part 6</a>
+</div>
+
+<div class="muted" id="subtitle" style="margin-top:10px;">
+  Protocol console: build URL → run mock/live JSONP → inspect response.
+</div>
+
+<!-- =========================================================
+FORM CARD
+- WEB_APP_URL: serve solo in LIVE
+- runType:
+    * mock  = training console (tutti i mode)
+    * live  = production console (view-only, mode nascosto)
+========================================================= -->
+<div class="card">
+  <label>WEB_APP_URL (Apps Script Web App)</label>
+
+  <!-- =========================================================
+DJUNGO-EDIT (BACKEND URL)
+- LIVE MODE: serve la Web App URL pubblicata (finisce con /exec)
+  Esempio: https://script.google.com/macros/s/DEPLOY_ID/exec
+- MOCK MODE: non serve. Puoi lasciarla vuota.
+- ERRORE tipico: incollare la "Library URL" o link da editor.
+  Quella NON è eseguibile come Web App per JSONP.
+========================================================= -->
+  <input id="webAppUrl" placeholder="https://script.google.com/macros/s/DEPLOY_ID/exec" />
+
+  <div class="row">
+    <div>
+      <label>runType</label>
+      <select id="runType">
+        <option value="mock" selected>mock (training console)</option>
+        <option value="live">live (production: view-only)</option>
+      </select>
+    </div>
+
+    <!-- =========================================================
+    MODE COLUMN (MOCK ONLY)
+    - In LIVE questa colonna deve sparire del tutto.
+    - Per questo la mettiamo in un wrapper con id="modeCol".
+    ========================================================= -->
+    <div id="modeCol">
+      <label>mode (mock only)</label>
+      <select id="mode">
+        <option value="test" selected>test</option>
+        <option value="echo">echo</option>
+        <option value="meta">meta</option>
+        <option value="schema">schema</option>
+        <option value="validate">validate</option>
+        <option value="view">view</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label>limit (only for view)</label>
+      <input id="limit" type="number" min="1" max="200" value="20" />
+    </div>
+
+    <div>
+      <label>payload (only for validate) — JSON</label>
+      <input id="payload" placeholder='{"foo":1}' />
+    </div>
+  </div>
+
+  <!-- =========================================================
+USER INSTRUCTIONS (readable, short)
+- Queste righe sono ciò che l’utente “vede e capisce”.
+========================================================= -->
+  <div class="muted" style="margin-top:10px; line-height:1.45;">
+    <div><b>How to use this playground:</b></div>
+    <div>1) Start with <b>mock</b> to learn the protocol without network.</div>
+    <div>2) In <b>mock</b> you can switch <b>mode</b>: test / echo / meta / schema / validate / view.</div>
+    <div>3) When ready, switch to <b>live</b>: the console becomes <b>view-only</b> and reads the last rows from your Google Sheet.</div>
+    <div>4) In <b>live</b>, paste the correct Web App URL ending with <b>/exec</b>, then click <b>Run</b>.</div>
+  </div>
+
+  <div style="margin-top:12px;">
+    <button id="runBtn">Run</button>
+  </div>
+</div>
+
+<!-- =========================================================
+OUTPUT PANELS
+========================================================= -->
+<div class="card">
+  <div class="muted">Generated URL</div>
+  <pre id="urlOut"></pre>
+</div>
+
+<div class="card">
+  <div class="muted">Response</div>
+  <pre id="respOut"></pre>
+</div>
+
+<script>
+/* ============================================================
+SECTION 1 — PAGE IDENTITY (Part-based lock)
+- Questo file è la Part 7: NON deve fingere di essere altro.
+============================================================ */
+const LAB_PART  = 9;
+const BACK_PART = 8;
+
+const ALLOWED_MODES = ["test", "echo", "meta", "schema", "validate", "view"];
+
+(function initPageIdentity(){
+  document.title = `Djungo Console — Part ${LAB_PART}`;
+  document.querySelector("#h1Title").innerHTML =
+    `Djungo Console <span class="muted">— Part ${LAB_PART}</span>`;
+
+  const back = document.querySelector("#backLink");
+  back.textContent = `Part ${BACK_PART}`;
+  back.href = `../v${BACK_PART}/index.html`;
+})();
+
+/* ============================================================
+SECTION 2 — JSONP CORE
+- JSONP richiede cb=<funzioneGlobale>
+- Usiamo un nome unico ad ogni run per evitare collisioni/caching.
+============================================================ */
+function makeCbName() {
+  return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+}
+
+/* ============================================================
+SECTION 3 — UI SYNC: MOCK vs LIVE
+Regola UX:
+- MOCK = training console (mode visibile + payload attivo)
+- LIVE = production console (mode colonna nascosta + payload disabilitato)
+============================================================ */
+function syncUiByRunType_() {
+  const runType = document.getElementById("runType").value;
+
+  const modeCol  = document.getElementById("modeCol");
+  const modeEl   = document.getElementById("mode");
+  const limitEl  = document.getElementById("limit");
+  const payloadEl= document.getElementById("payload");
+
+  if (runType === "live") {
+    // LIVE: view-only
+    modeEl.value = "view";
+
+    // nascondi completamente il blocco mode
+    modeCol.classList.add("hidden");
+
+    // limit rimane utile
+    limitEl.disabled = false;
+
+    // payload non serve in live
+    payloadEl.value = "";
+    payloadEl.disabled = true;
+  } else {
+    // MOCK: training
+    modeCol.classList.remove("hidden");
+    payloadEl.disabled = false;
+  }
+}
+
+document.getElementById("runType").addEventListener("change", syncUiByRunType_);
+syncUiByRunType_();
+
+/* ============================================================
+SECTION 4 — MOCK RESPONSES (training-only)
+- Qui l’utente “impara” i mode senza backend.
+- validate è robusto: se JSON non valido, NON crasha.
+============================================================ */
+function mockResponse(mode, limit, payloadTxt) {
+  if (mode === "test") return { ok:true, msg:"Mock OK test", part:LAB_PART };
+
+  if (mode === "echo") {
+    return { ok:true, part:LAB_PART, receivedParams:{ part:String(LAB_PART), mode:"echo" } };
+  }
+
+  if (mode === "meta") {
+    return { ok:true, part:LAB_PART, allowedModes:ALLOWED_MODES, backend:"mock" };
+  }
+
+  if (mode === "schema") {
+    return {
+      ok:true,
+      part:LAB_PART,
+      schema:{ params:["part","mode","cb","_","limit","payload"], modes:ALLOWED_MODES }
+    };
+  }
+
+  if (mode === "validate") {
+    if (!payloadTxt) return { ok:true, part:LAB_PART, valid:true, msg:"No payload provided (valid by default)", payload:null };
+    try {
+      return { ok:true, part:LAB_PART, valid:true, payload: JSON.parse(payloadTxt) };
+    } catch (e) {
+      return { ok:false, part:LAB_PART, valid:false, error:"Payload is not valid JSON", payload: payloadTxt };
+    }
+  }
+
+  if (mode === "view") {
+    return {
+      ok:true,
+      part:LAB_PART,
+      headers:["ID","Anno","Contesto"],
+      rows:[[1,"2020","REPUTAZIONE / BRAND"]],
+      limit:Number(limit || 20)
+    };
+  }
+
+  return { ok:false, error:"Unknown mock mode", part:LAB_PART, mode };
+}
+
+/* ============================================================
+SECTION 5 — LIVE URL BUILDER (production-only)
+Regola: LIVE = view-only
+- part  = LAB_PART
+- mode  = view (forzato)
+- cb    = JSONP callback
+- _     = cache-bust
+- limit = (default 20)
+============================================================ */
+function buildUrlLive_() {
+  const base = document.getElementById("webAppUrl").value.trim();
+  if (!base) throw new Error("Missing WEB_APP_URL (required in LIVE)");
+
+  const mode = "view"; // LIVE locked
+  const limit = document.getElementById("limit").value;
+
+  const cb = makeCbName();
+  const u = new URL(base);
+
+  u.searchParams.set("part", String(LAB_PART));
+  u.searchParams.set("mode", mode);
+  u.searchParams.set("cb", cb);
+  u.searchParams.set("_", Date.now().toString());
+  u.searchParams.set("limit", limit || "20");
+
+  return { url: u.toString(), cb };
+}
+
+/* ============================================================
+SECTION 6 — JSONP REQUEST (live network call)
+- Carica <script src="..."> e aspetta window[cb](data)
+============================================================ */
+function jsonpRequest(url, cbName) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+
+    window[cbName] = (data) => {
+      try { resolve(data); }
+      finally {
+        delete window[cbName];
+        script.remove();
+      }
+    };
+
+    script.src = url;
+    script.onerror = () => {
+      delete window[cbName];
+      script.remove();
+      reject(new Error("JSONP load/network error (check: /exec URL + deployment access)"));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+/* ============================================================
+SECTION 7 — RUN BUTTON (orchestrator)
+- MOCK: usa mockResponse()
+- LIVE: chiama GAS (view-only)
+============================================================ */
+const urlOut  = document.getElementById("urlOut");
+const respOut = document.getElementById("respOut");
+
+document.getElementById("runBtn").addEventListener("click", async () => {
+  try {
+    const runType = document.getElementById("runType").value;
+
+    if (runType === "mock") {
+      const mode  = document.getElementById("mode").value;
+      const limit = document.getElementById("limit").value;
+      const payloadTxt = document.getElementById("payload").value.trim();
+
+      const fakeUrl =
+        `mock://djungo-console?part=${encodeURIComponent(String(LAB_PART))}` +
+        `&mode=${encodeURIComponent(mode)}` +
+        `&limit=${encodeURIComponent(limit)}` +
+        `&_=${Date.now()}`;
+
+      urlOut.textContent = fakeUrl;
+
+      const data = mockResponse(mode, limit, payloadTxt || "");
+      respOut.textContent = JSON.stringify(data, null, 2);
+      return;
+    }
+
+    // LIVE (view-only)
+    const { url, cb } = buildUrlLive_();
+    urlOut.textContent = url;
+
+    const data = await jsonpRequest(url, cb);
+    respOut.textContent = JSON.stringify(data, null, 2);
+
+  } catch (e) {
+    respOut.textContent = "ERROR: " + (e && e.message ? e.message : String(e));
+  }
+});
+</script>
+
+</body>
+</html>
