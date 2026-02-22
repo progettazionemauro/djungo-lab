@@ -13,7 +13,7 @@ DJUNGO — VERSIONING RULE (IMPORTANT)
 - Questa pagina DEVE rappresentare SOLO la Part di questa cartella.
 - NON permettiamo di scegliere "part" da UI (evita confusione e mismatch).
 ========================================================= -->
-<title>Djungo Console</title>
+<title>Djungo Console — Part 7</title>
 
 <style>
   body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 980px; margin: 28px auto; padding: 0 16px; }
@@ -28,13 +28,14 @@ DJUNGO — VERSIONING RULE (IMPORTANT)
   a { color: inherit; }
 </style>
 </head>
+
 <body>
 
 <h1 id="h1Title">Djungo Console <span class="muted">— Part ?</span></h1>
 
 <!-- Link SOLO all’indietro: niente link al futuro -->
 <div class="muted" style="margin-top:6px;">
-  ← Back to previous lesson: <a id="backLink" href="../v6/index.html">Part 6</a>
+  ← Back to previous playground: <a id="backLink" href="../v6/index.html">Part 6</a>
 </div>
 
 <div class="muted" id="subtitle" style="margin-top:10px;">
@@ -58,18 +59,18 @@ DJUNGO-EDIT (BACKEND URL)
     <div>
       <label>runType</label>
       <select id="runType">
-        <option value="mock" selected>mock (no network)</option>
-        <option value="live">live (real backend)</option>
+        <option value="mock" selected>mock (training console)</option>
+        <option value="live">live (production: view-only)</option>
       </select>
     </div>
+
     <div>
-      <label>mode</label>
+      <label>mode (mock only)</label>
 
       <!-- =========================================================
 DJUNGO RULE (MODE LIST)
 - Questa lista deve essere coerente con backend Part 7 (route_).
-- Se nel backend aggiungi un nuovo mode (es. "schema"),
-  lo aggiungi qui.
+- In LIVE questa select viene DISABILITATA e forzata a "view".
 ========================================================= -->
       <select id="mode">
         <option value="test" selected>test</option>
@@ -87,10 +88,19 @@ DJUNGO RULE (MODE LIST)
       <label>limit (only for view)</label>
       <input id="limit" type="number" min="1" max="200" value="20" />
     </div>
+
     <div>
       <label>payload (only for validate) — JSON</label>
-      <input id="payload" placeholder='{"limit":20}' />
+      <input id="payload" placeholder='{"foo":1}' />
     </div>
+  </div>
+
+  <!-- Mini-istruzioni (super short, ma salvano la UX) -->
+  <div class="muted" style="margin-top:10px; line-height:1.35;">
+    <div><b>How to use (Part 7):</b></div>
+    <div><b>mock</b> = training: all modes available (test/echo/meta/schema/validate/view).</div>
+    <div><b>live</b> = production: locked to <b>view</b> only (reads last rows from the sheet).</div>
+    <div style="margin-top:6px;">Mock quick guide: test=health • echo=params • meta=capabilities • schema=contract • validate=parse JSON • view=read rows</div>
   </div>
 
   <div style="margin-top:12px;">
@@ -117,11 +127,11 @@ ISTRUZIONI PER TE (AUTORE):
   1) duplica lab/v7 -> lab/v8
   2) cambia LAB_PART = 8
   3) aggiorna BACK_PART = 7
-  4) aggiorna la lista ALLOWED_MODES in base alla nuova Part
+  4) aggiorna (se serve) ALLOWED_MODES in base alla nuova Part
 - Non aggiungere dropdown "part": la Part è la cartella.
 ============================================================ */
-const LAB_PART  = 7;     // <<< CAMBIA SOLO QUANDO DUPLICHI LA CARTELLA (v8 -> 8)
-const BACK_PART = 6;     // <<< Part precedente (link retroattivo)
+const LAB_PART  = 7;
+const BACK_PART = 6;
 
 const ALLOWED_MODES = ["test", "echo", "meta", "schema", "validate", "view"];
 
@@ -129,6 +139,7 @@ const ALLOWED_MODES = ["test", "echo", "meta", "schema", "validate", "view"];
   document.title = `Djungo Console — Part ${LAB_PART}`;
   document.querySelector("#h1Title").innerHTML =
     `Djungo Console <span class="muted">— Part ${LAB_PART}</span>`;
+
   const back = document.querySelector("#backLink");
   back.textContent = `Part ${BACK_PART}`;
   back.href = `../v${BACK_PART}/index.html`;
@@ -137,50 +148,90 @@ const ALLOWED_MODES = ["test", "echo", "meta", "schema", "validate", "view"];
 /* ============================================================
 JSONP CORE
 - JSONP vuole un nome funzione globale: cb=qualcosa
-- Noi generiamo un nome unico ad ogni run, così eviti caching/collisioni.
+- Nome unico ad ogni run, così eviti caching/collisioni.
 ============================================================ */
 function makeCbName() {
   return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
 }
 
 /* ============================================================
+UI BEHAVIOR: MOCK vs LIVE
+- MOCK: training console => mode + payload abilitati
+- LIVE: production => view-only (mode disabilitato, payload disabilitato)
+============================================================ */
+function syncUiByRunType_() {
+  const runType = document.getElementById("runType").value;
+
+  const modeEl = document.getElementById("mode");
+  const limitEl = document.getElementById("limit");
+  const payloadEl = document.getElementById("payload");
+
+  if (runType === "live") {
+    // LIVE locked
+    modeEl.value = "view";
+    modeEl.disabled = true;
+
+    limitEl.disabled = false;
+
+    payloadEl.value = "";
+    payloadEl.disabled = true;
+  } else {
+    // MOCK training
+    modeEl.disabled = false;
+    payloadEl.disabled = false;
+  }
+}
+
+document.getElementById("runType").addEventListener("change", syncUiByRunType_);
+syncUiByRunType_();
+
+/* ============================================================
 MOCK RESPONSES (DIDATTICI)
-- Servono per esercitarsi senza backend.
 - In mock vedrai SEMPRE "mock://..." come URL: è normale.
 ============================================================ */
 function mockResponse(mode, limit, payloadTxt) {
   if (mode === "test") return { ok:true, msg:"Mock OK test", part:LAB_PART };
   if (mode === "echo") return { ok:true, part:LAB_PART, receivedParams:{ part:String(LAB_PART), mode:"echo" } };
   if (mode === "meta") return { ok:true, part:LAB_PART, allowedModes:ALLOWED_MODES, backend:"mock" };
-  if (mode === "schema") return { ok:true, part:LAB_PART, schema:{ params:["part","mode","cb","limit"], modes:ALLOWED_MODES } };
-  if (mode === "validate") return { ok:true, part:LAB_PART, valid:true, payload: payloadTxt ? JSON.parse(payloadTxt) : null };
-  if (mode === "view") return { ok:true, part:LAB_PART, headers:["ID","Anno","Contesto"], rows:[[1,"2020","REPUTAZIONE / BRAND"]], limit:Number(limit) };
+  if (mode === "schema") return { ok:true, part:LAB_PART, schema:{ params:["part","mode","cb","_","limit","payload"], modes:ALLOWED_MODES } };
+
+  if (mode === "validate") {
+    if (!payloadTxt) return { ok:true, part:LAB_PART, valid:true, msg:"No payload provided (valid by default)", payload:null };
+    try {
+      return { ok:true, part:LAB_PART, valid:true, payload: JSON.parse(payloadTxt) };
+    } catch (e) {
+      return { ok:false, part:LAB_PART, valid:false, error:"Payload is not valid JSON", payload: payloadTxt };
+    }
+  }
+
+  if (mode === "view") {
+    return {
+      ok:true,
+      part:LAB_PART,
+      headers:["ID","Anno","Contesto"],
+      rows:[[1,"2020","REPUTAZIONE / BRAND"]],
+      limit:Number(limit || 20)
+    };
+  }
+
   return { ok:false, error:"Unknown mock mode", part:LAB_PART, mode };
 }
 
 /* ============================================================
-BUILD URL (LIVE ONLY)
-- Qui costruiamo la vera URL per la Web App GAS (/exec).
-- Parametri minimi del protocollo:
-  part  = versione backend (qui bloccata: LAB_PART)
-  mode  = azione
+BUILD URL (LIVE ONLY) — PRODUCTION LOCKED
+- LIVE è view-only:
+  part  = LAB_PART
+  mode  = view (forzato)
   cb    = callback JSONP
   _     = cache-bust
-- Parametri opzionali:
-  limit (solo view)
-  payload (solo validate) -> lo passiamo come stringa (query param)
+  limit = opzionale (default 20)
 ============================================================ */
 function buildUrlLive_() {
   const base = document.getElementById("webAppUrl").value.trim();
   if (!base) throw new Error("Missing WEB_APP_URL (required in LIVE)");
 
-  const mode  = document.getElementById("mode").value;
+  const mode = "view"; // LIVE locked
   const limit = document.getElementById("limit").value;
-  const payloadTxt = document.getElementById("payload").value.trim();
-
-  if (!ALLOWED_MODES.includes(mode)) {
-    throw new Error(`Mode "${mode}" is not available in Part ${LAB_PART}`);
-  }
 
   const cb = makeCbName();
   const u = new URL(base);
@@ -189,16 +240,7 @@ function buildUrlLive_() {
   u.searchParams.set("mode", mode);
   u.searchParams.set("cb", cb);
   u.searchParams.set("_", Date.now().toString());
-
-  if (mode === "view") u.searchParams.set("limit", limit || "20");
-
-  // validate: passiamo il payload come query param "payload"
-  // (Scelta didattica: in futuro potrai fare validate su campi singoli.)
-  if (mode === "validate" && payloadTxt) {
-    // NOTA: payload deve essere JSON valido
-    JSON.parse(payloadTxt);
-    u.searchParams.set("payload", payloadTxt);
-  }
+  u.searchParams.set("limit", limit || "20");
 
   return { url: u.toString(), cb };
 }
@@ -209,6 +251,8 @@ JSONP REQUEST (LIVE)
 ============================================================ */
 function jsonpRequest(url, cbName) {
   return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+
     window[cbName] = (data) => {
       try { resolve(data); }
       finally {
@@ -217,7 +261,6 @@ function jsonpRequest(url, cbName) {
       }
     };
 
-    const script = document.createElement("script");
     script.src = url;
     script.onerror = () => {
       delete window[cbName];
@@ -235,14 +278,15 @@ const respOut = document.getElementById("respOut");
 document.getElementById("runBtn").addEventListener("click", async () => {
   try {
     const runType = document.getElementById("runType").value;
-    const mode  = document.getElementById("mode").value;
-    const limit = document.getElementById("limit").value;
-    const payloadTxt = document.getElementById("payload").value.trim();
 
     // =========================
     // MOCK MODE (no backend)
     // =========================
     if (runType === "mock") {
+      const mode  = document.getElementById("mode").value;
+      const limit = document.getElementById("limit").value;
+      const payloadTxt = document.getElementById("payload").value.trim();
+
       const fakeUrl =
         `mock://djungo-console?part=${encodeURIComponent(String(LAB_PART))}` +
         `&mode=${encodeURIComponent(mode)}` +
@@ -257,7 +301,7 @@ document.getElementById("runBtn").addEventListener("click", async () => {
     }
 
     // =========================
-    // LIVE MODE (backend)
+    // LIVE MODE (backend) — view-only
     // =========================
     const { url, cb } = buildUrlLive_();
     urlOut.textContent = url;
@@ -266,7 +310,7 @@ document.getElementById("runBtn").addEventListener("click", async () => {
     respOut.textContent = JSON.stringify(data, null, 2);
 
   } catch (e) {
-    respOut.textContent = "ERROR: " + e.message;
+    respOut.textContent = "ERROR: " + (e && e.message ? e.message : String(e));
   }
 });
 </script>
@@ -274,5 +318,3 @@ document.getElementById("runBtn").addEventListener("click", async () => {
 </body>
 </html>
 
-</body>
-</html>
