@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HorrorMovie Viewer</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 12px; }
+    .muted { color:#666; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border:1px solid #e5e5e5; padding:8px; font-size: 13px; vertical-align: top; overflow-wrap:anywhere; }
+    th { background:#f5f5f5; position: sticky; top: 0; }
+    tbody tr:nth-child(even){ background:#f7f7f7; }
+  </style>
+</head>
+<body>
+
+  <div class="muted">Viewer read-only (ultime righe) — tab <b>HorrorMovie</b></div>
+  <div id="status" class="muted" style="margin:6px 0;">Caricamento…</div>
+  <div id="tbl"></div>
+
+<script>
+  const qs = new URLSearchParams(location.search);
+  const WEB_APP_URL = qs.get("webApp");
+  const LIMIT = qs.get("limit") || "50";
+
+  function jsonp(url) {
+    return new Promise((resolve, reject) => {
+      const cbName = "cb_" + Math.random().toString(36).slice(2);
+      const script = document.createElement("script");
+
+      const t = setTimeout(() => {
+        cleanup(); reject(new Error("Timeout JSONP"));
+      }, 15000);
+
+      function cleanup() {
+        clearTimeout(t);
+        try { delete window[cbName]; } catch (_) { window[cbName] = undefined; }
+        script.remove();
+      }
+
+      window[cbName] = (data) => { cleanup(); resolve(data); };
+
+      const u = new URL(url);
+      u.searchParams.set("cb", cbName);
+      u.searchParams.set("_", Date.now().toString());
+
+      script.src = u.toString();
+      script.onerror = () => { cleanup(); reject(new Error("JSONP load error")); };
+
+      document.body.appendChild(script);
+    });
+  }
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+    ));
+  }
+
+  async function load() {
+    const status = document.getElementById("status");
+    const tbl = document.getElementById("tbl");
+
+    if (!WEB_APP_URL) {
+      status.textContent = "Errore: manca parametro 'webApp' nell'URL.";
+      return;
+    }
+
+    try {
+      const u = new URL(WEB_APP_URL);
+      u.searchParams.set("mode", "view");
+      u.searchParams.set("limit", LIMIT);
+
+      const resp = await jsonp(u.toString());
+      if (!resp || resp.ok !== true) {
+        status.textContent = "Errore: " + (resp?.error || "risposta non valida");
+        return;
+      }
+
+      status.textContent = "OK";
+
+      const headers = resp.headers || [];
+      const rows = resp.rows || [];
+
+      let html = "<table><thead><tr>";
+      for (const h of headers) html += `<th>${esc(h)}</th>`;
+      html += "</tr></thead><tbody>";
+
+      for (const r of rows) {
+        html += "<tr>";
+        for (let i=0; i<headers.length; i++) {
+          html += `<td>${esc(r[i])}</td>`;
+        }
+        html += "</tr>";
+      }
+      html += "</tbody></table>";
+
+      tbl.innerHTML = html;
+
+    } catch (e) {
+      status.textContent = "Errore: " + e.message;
+    }
+  }
+
+  load();
+</script>
+
+</body>
+</html>
