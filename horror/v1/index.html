@@ -29,22 +29,36 @@
     Backend: Google Apps Script (JSONP) → Sheet tab <b>HorrorMovie</b>. Viewer read-only, writes protected by apiKey.
   </p>
 
-  <div class="card">
-    <h3 style="margin:0 0 10px;">Config</h3>
+<div class="card">
+  <h3 style="margin:0 0 10px;">Config</h3>
 
-    <label for="webAppUrl">WEB_APP_URL (deve finire con /exec)</label>
-    <input id="webAppUrl" value="https://script.google.com/macros/s/AKfycbzbe3pn8C39yUrQAX0Tdd3VSk93Y8pTNyV576VQ3xXjkT2RUehYST3f3fL6ix3v7VqLFg/exec" />
+  <label for="webAppUrl">WEB_APP_URL (deve finire con /exec)</label>
+  <input
+    id="webAppUrl"
+    type="url"
+    inputmode="url"
+    autocomplete="off"
+    spellcheck="false"
+    value="https://script.google.com/macros/s/AKfycbzbe3pn8C39yUrQAX0Tdd3VSk93Y8pTNyV576VQ3xXjkT2RUehYST3f3fL6ix3v7VqLFg/exec"
+  />
 
-    <label for="apiKey">apiKey (solo per insert/update/delete/getById)</label>
-    <input id="apiKey" placeholder="CHANGE_ME_WRITE_KEY_2026" />
+  <label for="apiKey">apiKey (solo per insert/update/delete/getById)</label>
+  <input
+    id="apiKey"
+    type="password"
+    autocomplete="off"
+    spellcheck="false"
+    placeholder="CHANGE_ME_WRITE_KEY_2026"
+  />
 
-    <div class="actions">
-      <button id="pingBtn" type="button">meta</button>
-      <button id="schemaBtn" type="button" class="secondary">schema</button>
-      <span id="cfgStatus" class="muted"></span>
-    </div>
-    <small>Tip: prima fai <b>schema</b>, poi inserisci 1 record, poi controlla nel viewer.</small>
+  <div class="actions">
+    <button id="pingBtn" type="button">meta</button>
+    <button id="schemaBtn" type="button" class="secondary">schema</button>
+    <span id="cfgStatus" class="muted"></span>
   </div>
+
+  <small>Tip: prima fai <b>schema</b>, poi inserisci 1 record, poi controlla nel viewer.</small>
+</div>
 
   <div class="card">
     <h3 style="margin:0 0 10px;">Insert (new movie)</h3>
