@@ -18,7 +18,6 @@
       white-space: pre-wrap;
     }
 
-    /* header */
     thead th{
       position: sticky;
       top: 0;
@@ -28,21 +27,17 @@
       font-weight: 800;
     }
 
-    /* banding righe */
     tbody tr:nth-child(even){ background:#f6f8fb; }
     tbody tr:nth-child(odd){ background:#ffffff; }
 
-    /* prima riga (più recente) */
     tbody tr.first-row {
-      background: #fff3cd !important; /* giallo chiaro */
+      background: #fff3cd !important;
       outline: 2px solid #ffe69c;
       outline-offset: -2px;
     }
 
-    /* link */
-    a { color: #1155cc; text-decoration: underline; font-weight: 700; }
+    a { color: #1155cc; text-decoration: underline; font-weight: 800; }
 
-    /* rating: classi colore */
     td.rating { font-weight: 900; text-align:center; }
     td.rating-pessimo     { background:#8b0000 !important; color:#fff !important; }
     td.rating-mediocre    { background:#c0392b !important; color:#fff !important; }
@@ -51,7 +46,6 @@
     td.rating-ottimo      { background:#2ecc71 !important; color:#111 !important; }
     td.rating-capolavoro  { background:#1abc9c !important; color:#111 !important; }
 
-    /* piccola evidenza colonna url */
     td.col-url { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px; }
   </style>
 </head>
@@ -97,10 +91,25 @@
     ));
   }
 
+  // Normalizza header: trim + lower + spazi collassati
+  function normHeader_(h) {
+    return String(h ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  // Trova indice colonna per keyword (robusto su spazi/case)
+  function findCol_(headers, keyword) {
+    const key = String(keyword).toLowerCase();
+    for (let i = 0; i < headers.length; i++) {
+      const nh = normHeader_(headers[i]);
+      if (nh === key) return i;
+      if (nh.includes(key)) return i;
+    }
+    return -1;
+  }
+
   function ratingClass_(val) {
     const v = String(val ?? "").trim().toLowerCase();
     if (!v) return "";
-    // normalizzo
     if (v === "pessimo") return "rating-pessimo";
     if (v === "mediocre") return "rating-mediocre";
     if (v === "medio") return "rating-medio";
@@ -130,19 +139,22 @@
         return;
       }
 
-      status.textContent = "OK";
-
       const headers = resp.headers || [];
       const rowsRaw = resp.rows || [];
 
-      // === vogliamo la più recente in alto ===
+      // più recente in alto
       const rows = rowsRaw.slice().reverse();
 
-      // indici colonne (case-insensitive)
-      const idxTitle  = headers.findIndex(h => String(h).trim().toLowerCase() === "title");
-      const idxLink   = headers.findIndex(h => String(h).trim().toLowerCase() === "link");
-      const idxUrl    = headers.findIndex(h => String(h).trim().toLowerCase() === "url");
-      const idxRating = headers.findIndex(h => String(h).trim().toLowerCase() === "rating");
+      // indici robusti
+      const idxTitle  = findCol_(headers, "title");
+      const idxLink   = findCol_(headers, "link");
+      const idxUrl    = findCol_(headers, "url");
+      const idxRating = findCol_(headers, "rating");
+
+      // DEBUG: mostra cosa ha trovato (così capiamo subito se idx=-1)
+      status.textContent =
+        `OK | cols: title=${idxTitle}, link=${idxLink}, url=${idxUrl}, rating=${idxRating} | headers=` +
+        headers.map(h => `"${String(h)}"`).join(", ");
 
       let html = "<table><thead><tr>";
       for (const h of headers) html += `<th>${esc(h)}</th>`;
@@ -152,33 +164,29 @@
         const r = rows[rI];
 
         const url = (idxUrl >= 0) ? String(r[idxUrl] ?? "").trim() : "";
-        const urlOk = !!url && (url.startsWith("http://") || url.startsWith("https://"));
+        const urlOk = /^https?:\/\//i.test(url);
 
         const trClass = (rI === 0) ? "first-row" : "";
         html += `<tr class="${trClass}">`;
 
         for (let c = 0; c < headers.length; c++) {
           const cellVal = r[c];
-
           let content = esc(cellVal);
 
-          // Title cliccabile (se url valido)
+          // Title cliccabile verso url
           if (c === idxTitle && urlOk) {
-            const text = String(cellVal ?? "").trim() || "link";
+            const text = String(cellVal ?? "").trim() || "open";
             content = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
           }
 
-          // Colonna "link" cliccabile (se url valido)
+          // Colonna link cliccabile verso url (anche se nel foglio è testo)
           if (c === idxLink && urlOk) {
             const text = String(cellVal ?? "").trim() || "open";
             content = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
           }
 
-          // rating colorato
           let cls = "";
           if (c === idxRating) cls = `rating ${ratingClass_(cellVal)}`;
-
-          // url monospace
           if (c === idxUrl) cls = (cls ? cls + " " : "") + "col-url";
 
           html += `<td class="${cls}">${content}</td>`;
