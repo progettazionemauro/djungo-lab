@@ -7,85 +7,73 @@
   <style>
     body { font-family: Arial, sans-serif; max-width: 1100px; margin: 28px auto; padding: 0 16px; }
     h1 { margin: 0 0 6px; }
-    .muted { color: #666; }
-    .card { border: 1px solid #e5e5e5; border-radius: 10px; padding: 14px; background: #fafafa; margin: 12px 0; }
-    label { display:block; margin: 10px 0 6px; font-weight: 600; }
-    input, select { width: 100%; padding: 9px; border:1px solid #ccc; border-radius: 8px; box-sizing: border-box; background:#fff; }
-    button { padding: 9px 12px; border: 0; border-radius: 8px; background: #111; color: #fff; cursor: pointer; font-weight: 700; }
-    button.secondary { background: #666; }
+    .muted { color:#666; }
+    .card { border:1px solid #e5e5e5; border-radius:10px; padding:14px; background:#fafafa; margin:12px 0; }
+    label { display:block; margin:10px 0 6px; font-weight:700; }
+    input, select { width:100%; padding:9px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; background:#fff; }
+    button { padding:9px 12px; border:0; border-radius:8px; background:#111; color:#fff; cursor:pointer; font-weight:800; }
+    button.secondary { background:#666; }
     button:disabled { opacity:.6; cursor:not-allowed; }
-    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .actions { display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top: 12px; }
-    .ok { color:#0a6; font-weight:700; }
-    .err { color:#b00; font-weight:700; }
-    iframe { width:100%; height: 560px; border:1px solid #ddd; border-radius: 10px; background:#fff; }
-    small { display:block; margin-top: 8px; color:#666; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+    .ok { color:#0a6; font-weight:800; }
+    .err { color:#b00; font-weight:800; }
+    iframe { width:100%; height:560px; border:1px solid #ddd; border-radius:10px; background:#fff; }
+    small { display:block; margin-top:8px; color:#666; }
+    pre { background:#0b0b0b;color:#d6ffd6;border-radius:10px;padding:12px;overflow:auto; }
   </style>
 </head>
 <body>
 
   <h1>HorrorAtlas <span class="muted">— v1</span></h1>
   <p class="muted">
-    Backend: Google Apps Script (JSONP) → Sheet tab <b>HorrorMovie</b>. Viewer read-only, writes protected by apiKey.
+    Backend: Google Apps Script (JSONP) → tab <b>HorrorMovie</b>.
+    <br/>Read: pubblico. Write: protetto da <code>apiKey</code>.
   </p>
 
-<div class="card">
-  <h3 style="margin:0 0 10px;">Config</h3>
+  <div class="card">
+    <h3 style="margin:0 0 10px;">Config</h3>
 
-  <label for="webAppUrl">WEB_APP_URL (deve finire con /exec)</label>
-  <input
-    id="webAppUrl"
-    type="url"
-    inputmode="url"
-    autocomplete="off"
-    spellcheck="false"
-    value="https://script.google.com/macros/s/AKfycbwdA3C2dE4jSZTbD428nmcI06OuEcZ_YgWQZGkY2g5ur97UK4ZxiOYPOJID5zwLaMCp/exec"
-    
-  
-   
-  />
+    <label for="webAppUrl">WEB_APP_URL (deve finire con /exec)</label>
+    <input id="webAppUrl" type="url" autocomplete="off" spellcheck="false"
+           value="https://script.google.com/macros/s/XXXXX/exec" />
 
-  <label for="apiKey">apiKey (solo per insert/update/delete/getById)</label>
-  <input
-    id="apiKey"
-    type="password"
-    autocomplete="off"
-    spellcheck="false"
-    placeholder="CHANGE_ME_WRITE_KEY_2026"
-  />
+    <label for="apiKey">apiKey (solo insert/update/delete/getById)</label>
+    <input id="apiKey" type="password" autocomplete="off" spellcheck="false"
+           placeholder="CHANGE_ME_WRITE_KEY_2026" />
 
-  <div class="actions">
-    <button id="pingBtn" type="button">meta</button>
-    <button id="schemaBtn" type="button" class="secondary">schema</button>
-    <span id="cfgStatus" class="muted"></span>
+    <div class="actions">
+      <button id="pingBtn" type="button">meta</button>
+      <button id="schemaBtn" type="button" class="secondary">schema</button>
+      <span id="cfgStatus" class="muted"></span>
+    </div>
+
+    <small>Tip: fai prima <b>schema</b>, poi inserisci 1 record, poi controlla nel viewer.</small>
   </div>
-
-  <small>Tip: prima fai <b>schema</b>, poi inserisci 1 record, poi controlla nel viewer.</small>
-</div>
 
   <div class="card">
     <h3 style="margin:0 0 10px;">Insert (new movie)</h3>
 
     <div class="row">
       <div>
-        <label for="year">year</label>
+        <label for="year">year <span class="muted">(required)</span></label>
         <input id="year" type="number" min="1890" max="2100" placeholder="1981" />
       </div>
       <div>
-        <label for="nation">nation</label>
-        <input id="nation" placeholder="Italy" />
+        <label for="nation">nation <span class="muted">(optional)</span></label>
+        <input id="nation" placeholder="USA" />
       </div>
     </div>
 
-    <label for="title">title</label>
-    <input id="title" placeholder="Suspiria" />
+    <label for="title">Title <span class="muted">(required)</span></label>
+    <input id="title" placeholder="Psycho" />
 
-    <label for="url">url</label>
-    <input id="url" placeholder="https://example.com/movie-page" />
+    <label for="url">url <span class="muted">(optional)</span></label>
+    <input id="url" placeholder="https://en.wikipedia.org/wiki/Psycho_(1960_film)" />
 
-    <label for="rating">rating</label>
+    <label for="rating">rating <span class="muted">(optional)</span></label>
     <select id="rating">
-      <option value="" selected disabled>Seleziona…</option>
+      <option value="" selected>—</option>
       <option>Pessimo</option>
       <option>Mediocre</option>
       <option>Medio</option>
@@ -117,7 +105,9 @@
       </div>
     </div>
 
-    <small class="muted">update riscrive year/title/url/nation/rating e rigenera link (HYPERLINK).</small>
+    <small class="muted">
+      update riscrive year/title/url/nation/rating e rigenera <b>link</b> (se url presente).
+    </small>
     <div class="actions">
       <span id="crudStatus" class="muted"></span>
     </div>
@@ -134,28 +124,19 @@
 
   <div class="card">
     <div class="muted">Response</div>
-    <pre id="out" style="background:#0b0b0b;color:#d6ffd6;border-radius:10px;padding:12px;overflow:auto;"></pre>
+    <pre id="out"></pre>
   </div>
 
 <script>
-  function setMsg(el, msg, cls) {
-    el.className = cls || "muted";
-    el.textContent = msg;
-  }
-
-  function makeCbName() {
-    return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
-  }
+  function setMsg(el, msg, cls) { el.className = cls || "muted"; el.textContent = msg; }
+  function makeCbName() { return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6); }
 
   function jsonp(url) {
     return new Promise((resolve, reject) => {
       const cbName = makeCbName();
       const script = document.createElement("script");
 
-      const t = setTimeout(() => {
-        cleanup();
-        reject(new Error("Timeout JSONP"));
-      }, 15000);
+      const t = setTimeout(() => { cleanup(); reject(new Error("Timeout JSONP")); }, 15000);
 
       function cleanup() {
         clearTimeout(t);
@@ -171,7 +152,6 @@
 
       script.src = u.toString();
       script.onerror = () => { cleanup(); reject(new Error("JSONP load error (check /exec + access)")); };
-
       document.body.appendChild(script);
     });
   }
@@ -181,10 +161,7 @@
     if (!base) throw new Error("Missing WEB_APP_URL");
     return base;
   }
-
-  function apiKey_() {
-    return document.getElementById("apiKey").value.trim();
-  }
+  function apiKey_() { return document.getElementById("apiKey").value.trim(); }
 
   function viewerUrl_(cacheBust) {
     const basePath = window.location.pathname.replace(/[^\/]*$/, "");
@@ -196,7 +173,6 @@
   }
 
   const out = document.getElementById("out");
-
   async function call_(mode, params = {}, needsKey = false) {
     const u = new URL(baseUrl_());
     u.searchParams.set("mode", mode);
@@ -207,15 +183,13 @@
     return resp;
   }
 
-  // Config buttons
+  // meta/schema
   document.getElementById("pingBtn").addEventListener("click", async () => {
     try {
       setMsg(document.getElementById("cfgStatus"), "Calling meta…");
       const r = await call_("meta", {}, false);
       setMsg(document.getElementById("cfgStatus"), r.ok ? "OK meta" : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) {
-      setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err");
-    }
+    } catch (e) { setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err"); }
   });
 
   document.getElementById("schemaBtn").addEventListener("click", async () => {
@@ -223,12 +197,10 @@
       setMsg(document.getElementById("cfgStatus"), "Calling schema…");
       const r = await call_("schema", {}, false);
       setMsg(document.getElementById("cfgStatus"), r.ok ? "OK schema" : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) {
-      setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err");
-    }
+    } catch (e) { setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err"); }
   });
 
-  // Insert
+  // insert (required: year,title; optional: url,nation,rating)
   document.getElementById("insertBtn").addEventListener("click", async () => {
     const st = document.getElementById("insertStatus");
     try {
@@ -242,9 +214,7 @@
       };
       const r = await call_("insert", payload, true);
       setMsg(st, r.ok ? `OK inserted id=${r.id}` : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) {
-      setMsg(st, "ERR: " + e.message, "err");
-    }
+    } catch (e) { setMsg(st, "ERR: " + e.message, "err"); }
   });
 
   // CRUD
@@ -257,14 +227,12 @@
       setMsg(st, r.ok ? `OK loaded id=${id}` : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
       if (r.ok && r.record) {
         document.getElementById("year").value = r.record.year || "";
-        document.getElementById("title").value = r.record.title || "";
+        document.getElementById("title").value = r.record.Title || r.record.title || "";
         document.getElementById("url").value = r.record.url || "";
         document.getElementById("nation").value = r.record.nation || "";
         document.getElementById("rating").value = r.record.rating || "";
       }
-    } catch (e) {
-      setMsg(st, "ERR: " + e.message, "err");
-    }
+    } catch (e) { setMsg(st, "ERR: " + e.message, "err"); }
   });
 
   document.getElementById("updateBtn").addEventListener("click", async () => {
@@ -282,9 +250,7 @@
       };
       const r = await call_("update", payload, true);
       setMsg(st, r.ok ? `OK updated id=${id}` : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) {
-      setMsg(st, "ERR: " + e.message, "err");
-    }
+    } catch (e) { setMsg(st, "ERR: " + e.message, "err"); }
   });
 
   document.getElementById("deleteBtn").addEventListener("click", async () => {
@@ -296,16 +262,12 @@
       setMsg(st, "Deleting…");
       const r = await call_("delete", { id }, true);
       setMsg(st, r.ok ? `OK deleted id=${id}` : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) {
-      setMsg(st, "ERR: " + e.message, "err");
-    }
+    } catch (e) { setMsg(st, "ERR: " + e.message, "err"); }
   });
 
   // Viewer
   const viewer = document.getElementById("viewer");
-  function loadViewer(cacheBust) {
-    viewer.src = viewerUrl_(cacheBust);
-  }
+  function loadViewer(cacheBust) { viewer.src = viewerUrl_(cacheBust); }
   document.getElementById("refreshViewerBtn").addEventListener("click", () => loadViewer(true));
   loadViewer(false);
 </script>
