@@ -7,13 +7,52 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 12px; }
     .muted { color:#666; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border:1px solid #e5e5e5; padding:8px; font-size: 13px; vertical-align: top; overflow-wrap:anywhere; }
-    th { background:#f5f5f5; position: sticky; top: 0; }
-    tbody tr:nth-child(even){ background:#f7f7f7; }
 
-    a { color: #1155cc; text-decoration: underline; }
-    td.rating { font-weight: 700; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td {
+      border:1px solid #e5e5e5;
+      padding:8px;
+      font-size: 13px;
+      vertical-align: top;
+      overflow-wrap:anywhere;
+      white-space: pre-wrap;
+    }
+
+    /* header */
+    thead th{
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #2f3b52;
+      color: #fff;
+      font-weight: 800;
+    }
+
+    /* banding righe */
+    tbody tr:nth-child(even){ background:#f6f8fb; }
+    tbody tr:nth-child(odd){ background:#ffffff; }
+
+    /* prima riga (più recente) */
+    tbody tr.first-row {
+      background: #fff3cd !important; /* giallo chiaro */
+      outline: 2px solid #ffe69c;
+      outline-offset: -2px;
+    }
+
+    /* link */
+    a { color: #1155cc; text-decoration: underline; font-weight: 700; }
+
+    /* rating: classi colore */
+    td.rating { font-weight: 900; text-align:center; }
+    td.rating-pessimo     { background:#8b0000 !important; color:#fff !important; }
+    td.rating-mediocre    { background:#c0392b !important; color:#fff !important; }
+    td.rating-medio       { background:#f39c12 !important; color:#111 !important; }
+    td.rating-buono       { background:#f1c40f !important; color:#111 !important; }
+    td.rating-ottimo      { background:#2ecc71 !important; color:#111 !important; }
+    td.rating-capolavoro  { background:#1abc9c !important; color:#111 !important; }
+
+    /* piccola evidenza colonna url */
+    td.col-url { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px; }
   </style>
 </head>
 <body>
@@ -58,6 +97,19 @@
     ));
   }
 
+  function ratingClass_(val) {
+    const v = String(val ?? "").trim().toLowerCase();
+    if (!v) return "";
+    // normalizzo
+    if (v === "pessimo") return "rating-pessimo";
+    if (v === "mediocre") return "rating-mediocre";
+    if (v === "medio") return "rating-medio";
+    if (v === "buono") return "rating-buono";
+    if (v === "ottimo") return "rating-ottimo";
+    if (v === "capolavoro") return "rating-capolavoro";
+    return "";
+  }
+
   async function load() {
     const status = document.getElementById("status");
     const tbl = document.getElementById("tbl");
@@ -81,11 +133,15 @@
       status.textContent = "OK";
 
       const headers = resp.headers || [];
-      const rows = resp.rows || [];
-      const links = resp.links || []; // parallelo a rows
+      const rowsRaw = resp.rows || [];
 
-      // individua indice Title e rating
-      const idxTitle = headers.findIndex(h => String(h).trim().toLowerCase() === "title");
+      // === vogliamo la più recente in alto ===
+      const rows = rowsRaw.slice().reverse();
+
+      // indici colonne (case-insensitive)
+      const idxTitle  = headers.findIndex(h => String(h).trim().toLowerCase() === "title");
+      const idxLink   = headers.findIndex(h => String(h).trim().toLowerCase() === "link");
+      const idxUrl    = headers.findIndex(h => String(h).trim().toLowerCase() === "url");
       const idxRating = headers.findIndex(h => String(h).trim().toLowerCase() === "rating");
 
       let html = "<table><thead><tr>";
@@ -94,20 +150,40 @@
 
       for (let rI = 0; rI < rows.length; rI++) {
         const r = rows[rI];
-        const L = links[rI];
 
-        html += "<tr>";
+        const url = (idxUrl >= 0) ? String(r[idxUrl] ?? "").trim() : "";
+        const urlOk = !!url && (url.startsWith("http://") || url.startsWith("https://"));
+
+        const trClass = (rI === 0) ? "first-row" : "";
+        html += `<tr class="${trClass}">`;
+
         for (let c = 0; c < headers.length; c++) {
-          let cell = esc(r[c]);
+          const cellVal = r[c];
 
-          // Title cliccabile: usa links[] (title+url)
-          if (c === idxTitle && L && L.url) {
-            cell = `<a href="${esc(L.url)}" target="_blank" rel="noopener">${esc(L.text)}</a>`;
+          let content = esc(cellVal);
+
+          // Title cliccabile (se url valido)
+          if (c === idxTitle && urlOk) {
+            const text = String(cellVal ?? "").trim() || "link";
+            content = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
           }
 
-          const cls = (c === idxRating) ? "rating" : "";
-          html += `<td class="${cls}">${cell}</td>`;
+          // Colonna "link" cliccabile (se url valido)
+          if (c === idxLink && urlOk) {
+            const text = String(cellVal ?? "").trim() || "open";
+            content = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
+          }
+
+          // rating colorato
+          let cls = "";
+          if (c === idxRating) cls = `rating ${ratingClass_(cellVal)}`;
+
+          // url monospace
+          if (c === idxUrl) cls = (cls ? cls + " " : "") + "col-url";
+
+          html += `<td class="${cls}">${content}</td>`;
         }
+
         html += "</tr>";
       }
 
