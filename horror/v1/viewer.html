@@ -11,6 +11,9 @@
     th, td { border:1px solid #e5e5e5; padding:8px; font-size: 13px; vertical-align: top; overflow-wrap:anywhere; }
     th { background:#f5f5f5; position: sticky; top: 0; }
     tbody tr:nth-child(even){ background:#f7f7f7; }
+
+    a { color: #1155cc; text-decoration: underline; }
+    td.rating { font-weight: 700; }
   </style>
 </head>
 <body>
@@ -29,9 +32,7 @@
       const cbName = "cb_" + Math.random().toString(36).slice(2);
       const script = document.createElement("script");
 
-      const t = setTimeout(() => {
-        cleanup(); reject(new Error("Timeout JSONP"));
-      }, 15000);
+      const t = setTimeout(() => { cleanup(); reject(new Error("Timeout JSONP")); }, 15000);
 
       function cleanup() {
         clearTimeout(t);
@@ -47,7 +48,6 @@
 
       script.src = u.toString();
       script.onerror = () => { cleanup(); reject(new Error("JSONP load error")); };
-
       document.body.appendChild(script);
     });
   }
@@ -82,20 +82,36 @@
 
       const headers = resp.headers || [];
       const rows = resp.rows || [];
+      const links = resp.links || []; // parallelo a rows
+
+      // individua indice Title e rating
+      const idxTitle = headers.findIndex(h => String(h).trim().toLowerCase() === "title");
+      const idxRating = headers.findIndex(h => String(h).trim().toLowerCase() === "rating");
 
       let html = "<table><thead><tr>";
       for (const h of headers) html += `<th>${esc(h)}</th>`;
       html += "</tr></thead><tbody>";
 
-      for (const r of rows) {
+      for (let rI = 0; rI < rows.length; rI++) {
+        const r = rows[rI];
+        const L = links[rI];
+
         html += "<tr>";
-        for (let i=0; i<headers.length; i++) {
-          html += `<td>${esc(r[i])}</td>`;
+        for (let c = 0; c < headers.length; c++) {
+          let cell = esc(r[c]);
+
+          // Title cliccabile: usa links[] (title+url)
+          if (c === idxTitle && L && L.url) {
+            cell = `<a href="${esc(L.url)}" target="_blank" rel="noopener">${esc(L.text)}</a>`;
+          }
+
+          const cls = (c === idxRating) ? "rating" : "";
+          html += `<td class="${cls}">${cell}</td>`;
         }
         html += "</tr>";
       }
-      html += "</tbody></table>";
 
+      html += "</tbody></table>";
       tbl.innerHTML = html;
 
     } catch (e) {
