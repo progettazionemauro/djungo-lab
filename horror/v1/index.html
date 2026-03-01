@@ -270,6 +270,23 @@
   function loadViewer(cacheBust) { viewer.src = viewerUrl_(cacheBust); }
   document.getElementById("refreshViewerBtn").addEventListener("click", () => loadViewer(true));
   loadViewer(false);
+
+// ===============================
+// MEMORIZZA apiKey SOLO PER QUESTA SESSIONE
+// ===============================
+
+const apiKeyInput = document.getElementById("apiKey");
+
+// se esiste già in sessione, la rimette nel campo
+const savedKey = sessionStorage.getItem("HORROR_API_KEY");
+if (savedKey && !apiKeyInput.value) {
+  apiKeyInput.value = savedKey;
+}
+
+// ogni volta che la modifichi, la salva in sessione
+apiKeyInput.addEventListener("input", () => {
+  sessionStorage.setItem("HORROR_API_KEY", apiKeyInput.value.trim());
+});
 </script>
 
 </body>
