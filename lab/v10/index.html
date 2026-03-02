@@ -1,1 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 
+<!-- =========================================================
+DJUNGO — VERSIONING RULE (IMPORTANT)
+- Ogni lezione vive in una cartella dedicata:
+  lab/v9/index.html  -> Part 9
+  lab/v10/index.html -> Part 10
+- Questa pagina DEVE rappresentare SOLO la Part di questa cartella.
+- Non permettiamo di scegliere "part" da UI: evita mismatch tra FE e BE.
+========================================================= -->
+<title>Djungo Console — Part 10</title>
+
+<style>
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 980px; margin: 28px auto; padding: 0 16px; }
+  h1 { margin: 0 0 8px; }
+  .muted { opacity: .75; }
+  .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; margin: 12px 0; }
+  label { display:block; margin: 10px 0 6px; font-size: 12px; opacity:.85; }
+  input, select { width:100%; padding:10px; border:1px solid #ccc; border-radius:10px; }
+  button { padding:10px 12px; border-radius:10px; border:1px solid #111; background:#111; color:#fff; cursor:pointer; }
+  button.secondary { background: #fff; color:#111; }
+  pre { background:#0b0b0b; color:#d6ffd6; border-radius:12px; padding:12px; overflow:auto; }
+  .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  a { color: inherit; }
+  .hidden { display:none !important; }
+</style>
+</head>
+
+<body>
+
+<h1 id="h1Title">Djungo Console <span class="muted">— Part ?</span></h1>
+
+<!-- Link SOLO all’indietro: niente link al futuro -->
+<div class="muted" style="margin-top:6px;">
+  ← Back to previous playground: <a id="backLink" href="../v9/index.html">Part 9</a>
+</div>
+
+<div class="muted" id="subtitle" style="margin-top:10px;">
+  Part 10: validation rules — learn to reject garbage before it hits the sheet.
+</div>
+
+<!-- =========================================================
+FORM CARD
+- LIVE: view-only (mode nascosto)
+- MOCK: training console (mode visibile + payload attivo)
+========================================================= -->
+<div class="card">
+  <label>WEB_APP_URL (Apps Script Web App)</label>
+  <input id="webAppUrl" placeholder="https://script.google.com/macros/s/DEPLOY_ID/exec" />
+
+  <div class="row">
+    <div>
+      <label>runType</label>
+      <select id="runType">
+        <option value="mock" selected>mock (training console)</option>
+        <option value="live">live (production: view-only)</option>
+      </select>
+    </div>
+
+    <div id="modeCol">
+      <label>mode (mock only)</label>
+      <select id="mode">
+        <option value="test" selected>test</option>
+        <option value="echo">echo</option>
+        <option value="meta">meta</option>
+        <option value="schema">schema</option>
+        <option value="validate">validate</option>
+        <option value="view">view</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label>limit (only for view)</label>
+      <input id="limit" type="number" min="1" max="200" value="20" />
+    </div>
+
+    <div>
+      <label>payload (mock: validate) — JSON</label>
+      <input id="payload" placeholder='{"year":1981,"title":"The Beyond","url":"https://...","nation":"Italy","rating":"Ottimo"}' />
+    </div>
+  </div>
+
+  <!-- Istruzioni visibili (brevi e operative) -->
+  <div class="muted" style="margin-top:10px; line-height:1.45;">
+    <div><b>How to use this playground:</b></div>
+    <div>1) In <b>mock</b>, open <b>validate</b> and paste a payload: the console will clean it and reject bad fields.</div>
+    <div>2) When you switch to <b>live</b>, the console becomes <b>view-only</b>: it reads your last rows from the Sheet.</div>
+    <div>3) In <b>live</b>, paste the Web App URL ending with <b>/exec</b>, then click <b>Run</b>.</div>
+  </div>
+
+  <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+    <button id="runBtn">Run</button>
+    <button id="fillGoodBtn" type="button" class="secondary">Fill payload (good)</button>
+    <button id="fillBadBtn" type="button" class="secondary">Fill payload (bad)</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="muted">Generated URL</div>
+  <pre id="urlOut"></pre>
+</div>
+
+<div class="card">
+  <div class="muted">Response</div>
+  <pre id="respOut"></pre>
+</div>
+
+<script>
+/* ============================================================
+SECTION 1 — PAGE IDENTITY (Part-based lock)
+
+LAB_PART  = "questa pagina è la Part 10"
+BACK_PART = "link al playground precedente"
+
+Serve SOLO al frontend, per:
+- cambiare titolo e link back
+- evitare che una pagina "finga" di essere un’altra part
+NON è una “istruzione di servizio” per te: è disciplina per il lettore.
+============================================================ */
+const LAB_PART  = 10;
+const BACK_PART = 9;
+
+const ALLOWED_MODES = ["test", "echo", "meta", "schema", "validate", "view"];
+
+(function initPageIdentity(){
+  document.title = `Djungo Console — Part ${LAB_PART}`;
+  document.querySelector("#h1Title").innerHTML =
+    `Djungo Console <span class="muted">— Part ${LAB_PART}</span>`;
+
+  const back = document.querySelector("#backLink");
+  back.textContent = `Part ${BACK_PART}`;
+  back.href = `../v${BACK_PART}/index.html`;
+})();
+
+/* ============================================================
+SECTION 2 — JSONP CORE
+- JSONP richiede cb=<funzioneGlobale>
+- Usiamo un nome unico ad ogni run per evitare collisioni/caching.
+============================================================ */
+function makeCbName() {
+  return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6);
+}
+
+/* ============================================================
+SECTION 3 — UI SYNC: MOCK vs LIVE
+Regola UX:
+- MOCK = training console (mode visibile + payload attivo)
+- LIVE = production console (mode colonna nascosta + payload disabilitato)
+============================================================ */
+function syncUiByRunType_() {
+  const runType = document.getElementById("runType").value;
+
+  const modeCol   = document.getElementById("modeCol");
+  const modeEl    = document.getElementById("mode");
+  const limitEl   = document.getElementById("limit");
+  const payloadEl = document.getElementById("payload");
+
+  if (runType === "live") {
+    // LIVE: view-only
+    modeEl.value = "view";
+    modeCol.classList.add("hidden");
+    limitEl.disabled = false;
+    payloadEl.value = "";
+    payloadEl.disabled = true;
+  } else {
+    modeCol.classList.remove("hidden");
+    payloadEl.disabled = false;
+  }
+}
+document.getElementById("runType").addEventListener("change", syncUiByRunType_);
+syncUiByRunType_();
+
+/* ============================================================
+SECTION 4 — PART 10: VALIDATION “ENGINE” (mock-only)
+
+Qui introduciamo il pattern che vuoi spiegare nel Layer 3:
+  const { error, clean } = validatePayload_(raw);
+
+- error: stringa o null (se c’è errore)
+- clean: oggetto “pulito” e normalizzato (pronto per backend)
+
+Perché "clean"?
+Perché NON vuoi passare in giro l’oggetto "raw" (sporco, incoerente,
+con spazi, tipi sbagliati, campi non ammessi).
+============================================================ */
+
+const RATING_ALLOWED = ["Pessimo","Mediocre","Medio","Buono","Ottimo","Capolavoro"];
+
+function validatePayload_(raw) {
+  // 1) assicurati che raw sia un oggetto
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { error: "Payload must be a JSON object", clean: null };
+  }
+
+  // 2) allowlist: scarta qualunque campo non previsto
+  // (questa è una regola forte: impedisce “garbage keys”)
+  const allowedKeys = new Set(["year","title","url","nation","rating"]);
+  const unknown = Object.keys(raw).filter(k => !allowedKeys.has(k));
+  if (unknown.length) {
+    return { error: `Unknown fields: ${unknown.join(", ")}`, clean: null };
+  }
+
+  // 3) normalizzazione (il “clean object”)
+  // - year: int
+  // - title/nation/rating: trimmed string
+  // - url: trimmed string
+  const clean = {
+    year: Number.parseInt(String(raw.year ?? "").trim(), 10),
+    title: String(raw.title ?? "").trim(),
+    url: String(raw.url ?? "").trim(),
+    nation: String(raw.nation ?? "").trim(),
+    rating: String(raw.rating ?? "").trim(),
+  };
+
+  // 4) required fields (Part 10: non scriviamo ancora, ma “rifiutiamo”)
+  const missing = [];
+  if (!clean.year) missing.push("year");
+  if (!clean.title) missing.push("title");
+  if (!clean.url) missing.push("url");
+  if (!clean.nation) missing.push("nation");
+  if (!clean.rating) missing.push("rating");
+  if (missing.length) {
+    return { error: `Missing required fields: ${missing.join(", ")}`, clean: null };
+  }
+
+  // 5) constraints (esempi “minimali”)
+  if (clean.year < 1890 || clean.year > 2100) {
+    return { error: "year out of range (1890..2100)", clean: null };
+  }
+  if (clean.title.length > 120) {
+    return { error: "title too long (max 120)", clean: null };
+  }
+  if (clean.url.length > 600) {
+    return { error: "url too long (max 600)", clean: null };
+  }
+  if (!isValidUrl_(clean.url)) {
+    return { error: "url is not valid (must start http/https)", clean: null };
+  }
+  if (!RATING_ALLOWED.includes(clean.rating)) {
+    return { error: `rating not allowed (choose one of: ${RATING_ALLOWED.join(", ")})`, clean: null };
+  }
+
+  // OK
+  return { error: null, clean };
+}
+
+function isValidUrl_(s) {
+  try {
+    const u = new URL(String(s));
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch (_) {
+    return false;
+  }
+}
+
+/* ============================================================
+SECTION 5 — MOCK RESPONSES (training-only)
+Part 10 modifica soprattutto validate:
+- validate ora restituisce clean + (eventuale) error
+============================================================ */
+function mockResponse(mode, limit, payloadTxt) {
+  if (mode === "test") return { ok:true, msg:"Mock OK test", part:LAB_PART };
+
+  if (mode === "echo") {
+    return { ok:true, part:LAB_PART, receivedParams:{ part:String(LAB_PART), mode:"echo" } };
+  }
+
+  if (mode === "meta") {
+    return { ok:true, part:LAB_PART, allowedModes:ALLOWED_MODES, backend:"mock", focus:"validation rules" };
+  }
+
+  if (mode === "schema") {
+    return {
+      ok:true,
+      part:LAB_PART,
+      schema:{
+        params:["part","mode","cb","_","limit","payload"],
+        validate:{ payload:{ type:"json", required:false }, returns:["ok","error","clean"] }
+      }
+    };
+  }
+
+  if (mode === "validate") {
+    if (!payloadTxt) {
+      return { ok:true, part:LAB_PART, valid:true, msg:"No payload provided (valid by default)", clean:null };
+    }
+
+    let raw = null;
+    try {
+      raw = JSON.parse(payloadTxt);
+    } catch (_) {
+      return { ok:false, part:LAB_PART, valid:false, error:"Payload is not valid JSON text", clean:null, rawText: payloadTxt };
+    }
+
+    // === QUI: la riga che vuoi approfondire nel Layer 3 ===
+    const { error, clean } = validatePayload_(raw);
+
+    if (error) {
+      return { ok:false, part:LAB_PART, valid:false, error, clean:null, raw };
+    }
+    return { ok:true, part:LAB_PART, valid:true, error:null, clean, raw };
+  }
+
+  if (mode === "view") {
+    return {
+      ok:true,
+      part:LAB_PART,
+      headers:["id","year","title","url","nation","rating"],
+      rows:[[1,1981,"The Beyond","https://example.com","Italy","Ottimo"]],
+      limit:Number(limit || 20)
+    };
+  }
+
+  return { ok:false, error:"Unknown mock mode", part:LAB_PART, mode };
+}
+
+/* ============================================================
+SECTION 6 — LIVE URL BUILDER (production-only)
+Regola: LIVE = view-only
+============================================================ */
+function buildUrlLive_() {
+  const base = document.getElementById("webAppUrl").value.trim();
+  if (!base) throw new Error("Missing WEB_APP_URL (required in LIVE)");
+
+  const limit = document.getElementById("limit").value;
+
+  const cb = makeCbName();
+  const u = new URL(base);
+
+  // Nota: qui mantenimo part-based come nel tuo backend “Djungo core”.
+  // Se il backend Horror NON usa part, ignorerà questo parametro (non rompe nulla).
+  u.searchParams.set("part", String(LAB_PART));
+  u.searchParams.set("mode", "view");
+  u.searchParams.set("cb", cb);
+  u.searchParams.set("_", Date.now().toString());
+  u.searchParams.set("limit", limit || "20");
+
+  return { url: u.toString(), cb };
+}
+
+/* ============================================================
+SECTION 7 — JSONP REQUEST (live network call)
+============================================================ */
+function jsonpRequest(url, cbName) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+
+    window[cbName] = (data) => {
+      try { resolve(data); }
+      finally {
+        delete window[cbName];
+        script.remove();
+      }
+    };
+
+    script.src = url;
+    script.onerror = () => {
+      delete window[cbName];
+      script.remove();
+      reject(new Error("JSONP load/network error (check: /exec URL + deployment access + doGet exists)"));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+/* ============================================================
+SECTION 8 — RUN BUTTON (orchestrator)
+============================================================ */
+const urlOut  = document.getElementById("urlOut");
+const respOut = document.getElementById("respOut");
+
+document.getElementById("runBtn").addEventListener("click", async () => {
+  try {
+    const runType = document.getElementById("runType").value;
+
+    if (runType === "mock") {
+      const mode  = document.getElementById("mode").value;
+      const limit = document.getElementById("limit").value;
+      const payloadTxt = document.getElementById("payload").value.trim();
+
+      const fakeUrl =
+        `mock://djungo-console?part=${encodeURIComponent(String(LAB_PART))}` +
+        `&mode=${encodeURIComponent(mode)}` +
+        `&limit=${encodeURIComponent(limit)}` +
+        `&_=${Date.now()}`;
+
+      urlOut.textContent = fakeUrl;
+
+      const data = mockResponse(mode, limit, payloadTxt || "");
+      respOut.textContent = JSON.stringify(data, null, 2);
+      return;
+    }
+
+    // LIVE
+    const { url, cb } = buildUrlLive_();
+    urlOut.textContent = url;
+
+    const data = await jsonpRequest(url, cb);
+    respOut.textContent = JSON.stringify(data, null, 2);
+
+  } catch (e) {
+    respOut.textContent = "ERROR: " + (e && e.message ? e.message : String(e));
+  }
+});
+
+/* quick helpers: payload examples */
+const payloadEl = document.getElementById("payload");
+document.getElementById("fillGoodBtn").addEventListener("click", () => {
+  payloadEl.value = JSON.stringify({
+    year: 1981,
+    title: "The Beyond",
+    url: "https://example.com/the-beyond",
+    nation: "Italy",
+    rating: "Ottimo"
+  });
+});
+document.getElementById("fillBadBtn").addEventListener("click", () => {
+  // bad on purpose: unknown key + wrong url + rating not allowed
+  payloadEl.value = JSON.stringify({
+    year: 2500,
+    title: "X",
+    url: "ftp://nope",
+    nation: "Italy",
+    rating: "Superb",
+    hackerField: "lol"
+  });
+});
+</script>
+
+</body>
+</html>
