@@ -34,11 +34,6 @@
   <div class="card">
     <h3 style="margin:0 0 10px;">Config</h3>
 
-    <label for="webAppUrl">WEB_APP_URL (deve finire con /exec)</label>
-    <input id="webAppUrl" type="url" autocomplete="off" spellcheck="false"
-           value="https://script.google.com/macros/s/AKfycbyT_sFEWNikgtk-XBU3flnorVigwQPsPc0sSmWKMX5V1tl4SwFdnS5SLFEPQ82bcarn/exec" />
-
-
     <label for="apiKey">apiKey (solo insert/update/delete/getById)</label>
     <input id="apiKey" type="password" autocomplete="off" spellcheck="false"
            placeholder="CHANGE_ME_WRITE_KEY_2026" />
@@ -118,8 +113,7 @@
     <h3 style="margin:0 0 10px;">Viewer (read-only)</h3>
     <iframe id="viewer" loading="lazy"></iframe>
     <div class="actions">
-      <button id="refreshViewerBtn" class="secondary" type="button">Refresh viewer</button>
-      <span class="muted">Carica le ultime 50 righe (cache-bust).</span>
+      <span class="muted">Il viewer si aggiorna automaticamente dopo insert/update/delete.</span>
     </div>
   </div>
 
@@ -129,6 +123,9 @@
   </div>
 
 <script>
+  // ===== CONFIG FISSA =====
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyT_sFEWNikgtk-XBU3flnorVigwQPsPc0sSmWKMX5V1tl4SwFdnS5SLFEPQ82bcarn/exec";
+
   function setMsg(el, msg, cls) { el.className = cls || "muted"; el.textContent = msg; }
   function makeCbName() { return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6); }
 
@@ -158,27 +155,29 @@
   }
 
   function baseUrl_() {
-    const base = document.getElementById("webAppUrl").value.trim();
-    if (!base) throw new Error("Missing WEB_APP_URL");
-    return base;
+    return WEB_APP_URL;
   }
-  function apiKey_() { return document.getElementById("apiKey").value.trim(); }
+
+  function apiKey_() {
+    return document.getElementById("apiKey").value.trim();
+  }
 
   function viewerUrl_(cacheBust) {
     const basePath = window.location.pathname.replace(/[^\/]*$/, "");
     const u = new URL(basePath + "viewer.html", window.location.origin);
-    u.searchParams.set("webApp", document.getElementById("webAppUrl").value.trim());
+    u.searchParams.set("webApp", WEB_APP_URL);
     u.searchParams.set("limit", "50");
     if (cacheBust) u.searchParams.set("_", Date.now().toString());
     return u.toString();
   }
 
   const out = document.getElementById("out");
+
   async function call_(mode, params = {}, needsKey = false) {
     const u = new URL(baseUrl_());
     u.searchParams.set("mode", mode);
     if (needsKey) u.searchParams.set("apiKey", apiKey_());
-    Object.entries(params).forEach(([k,v]) => u.searchParams.set(k, String(v ?? "")));
+    Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, String(v ?? "")));
     const resp = await jsonp(u.toString());
     out.textContent = JSON.stringify(resp, null, 2);
     return resp;
@@ -189,19 +188,36 @@
     try {
       setMsg(document.getElementById("cfgStatus"), "Calling meta…");
       const r = await call_("meta", {}, false);
-      setMsg(document.getElementById("cfgStatus"), r.ok ? "OK meta" : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) { setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err"); }
+      setMsg(document.getElementById("cfgStatus"), r.ok ? "OK meta" : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
+    } catch (e) {
+      setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err");
+    }
   });
 
   document.getElementById("schemaBtn").addEventListener("click", async () => {
     try {
       setMsg(document.getElementById("cfgStatus"), "Calling schema…");
       const r = await call_("schema", {}, false);
-      setMsg(document.getElementById("cfgStatus"), r.ok ? "OK schema" : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) { setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err"); }
+      setMsg(document.getElementById("cfgStatus"), r.ok ? "OK schema" : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
+    } catch (e) {
+      setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err");
+    }
   });
 
-  // insert (required: year,title; optional: url,nation,rating)
+  // Viewer
+  const viewer = document.getElementById("viewer");
+
+  function loadViewer(cacheBust) {
+    viewer.src = viewerUrl_(cacheBust);
+  }
+
+  function refreshViewerSoon(delayMs = 700) {
+    setTimeout(() => loadViewer(true), delayMs);
+  }
+
+  loadViewer(false);
+
+  // insert
   document.getElementById("insertBtn").addEventListener("click", async () => {
     const st = document.getElementById("insertStatus");
     try {
@@ -213,19 +229,30 @@
         nation: document.getElementById("nation").value.trim(),
         rating: document.getElementById("rating").value
       };
+
+      console.log("INSERT payload =", payload);
+
       const r = await call_("insert", payload, true);
-      setMsg(st, r.ok ? `OK inserted id=${r.id}` : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) { setMsg(st, "ERR: " + e.message, "err"); }
+      setMsg(st, r.ok ? `OK inserted id=${r.id}` : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
+
+      if (r.ok) {
+        refreshViewerSoon();
+      }
+
+    } catch (e) {
+      setMsg(st, "ERR: " + e.message, "err");
+    }
   });
 
-  // CRUD
+  // getById
   document.getElementById("getBtn").addEventListener("click", async () => {
     const st = document.getElementById("crudStatus");
     try {
       const id = document.getElementById("id").value.trim();
       setMsg(st, "Loading…");
       const r = await call_("getById", { id }, true);
-      setMsg(st, r.ok ? `OK loaded id=${id}` : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
+      setMsg(st, r.ok ? `OK loaded id=${id}` : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
+
       if (r.ok && r.record) {
         document.getElementById("year").value = r.record.year || "";
         document.getElementById("title").value = r.record.Title || r.record.title || "";
@@ -233,14 +260,18 @@
         document.getElementById("nation").value = r.record.nation || "";
         document.getElementById("rating").value = r.record.rating || "";
       }
-    } catch (e) { setMsg(st, "ERR: " + e.message, "err"); }
+    } catch (e) {
+      setMsg(st, "ERR: " + e.message, "err");
+    }
   });
 
+  // update
   document.getElementById("updateBtn").addEventListener("click", async () => {
     const st = document.getElementById("crudStatus");
     try {
       const id = document.getElementById("id").value.trim();
       setMsg(st, "Updating…");
+
       const payload = {
         id,
         year: document.getElementById("year").value.trim(),
@@ -249,45 +280,53 @@
         nation: document.getElementById("nation").value.trim(),
         rating: document.getElementById("rating").value
       };
+
       const r = await call_("update", payload, true);
-      setMsg(st, r.ok ? `OK updated id=${id}` : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) { setMsg(st, "ERR: " + e.message, "err"); }
+      setMsg(st, r.ok ? `OK updated id=${id}` : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
+
+      if (r.ok) {
+        refreshViewerSoon();
+      }
+
+    } catch (e) {
+      setMsg(st, "ERR: " + e.message, "err");
+    }
   });
 
+  // delete
   document.getElementById("deleteBtn").addEventListener("click", async () => {
     const st = document.getElementById("crudStatus");
     try {
       const id = document.getElementById("id").value.trim();
       if (!id) throw new Error("Missing id");
       if (!confirm(`Delete id=${id}?`)) return;
+
       setMsg(st, "Deleting…");
       const r = await call_("delete", { id }, true);
-      setMsg(st, r.ok ? `OK deleted id=${id}` : ("ERR: " + (r.error||"")), r.ok ? "ok":"err");
-    } catch (e) { setMsg(st, "ERR: " + e.message, "err"); }
+      setMsg(st, r.ok ? `OK deleted id=${id}` : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
+
+      if (r.ok) {
+        refreshViewerSoon();
+      }
+
+    } catch (e) {
+      setMsg(st, "ERR: " + e.message, "err");
+    }
   });
 
-  // Viewer
-  const viewer = document.getElementById("viewer");
-  function loadViewer(cacheBust) { viewer.src = viewerUrl_(cacheBust); }
-  document.getElementById("refreshViewerBtn").addEventListener("click", () => loadViewer(true));
-  loadViewer(false);
+  // ===============================
+  // MEMORIZZA apiKey SOLO PER QUESTA SESSIONE
+  // ===============================
+  const apiKeyInput = document.getElementById("apiKey");
 
-// ===============================
-// MEMORIZZA apiKey SOLO PER QUESTA SESSIONE
-// ===============================
+  const savedKey = sessionStorage.getItem("HORROR_API_KEY");
+  if (savedKey && !apiKeyInput.value) {
+    apiKeyInput.value = savedKey;
+  }
 
-const apiKeyInput = document.getElementById("apiKey");
-
-// se esiste già in sessione, la rimette nel campo
-const savedKey = sessionStorage.getItem("HORROR_API_KEY");
-if (savedKey && !apiKeyInput.value) {
-  apiKeyInput.value = savedKey;
-}
-
-// ogni volta che la modifichi, la salva in sessione
-apiKeyInput.addEventListener("input", () => {
-  sessionStorage.setItem("HORROR_API_KEY", apiKeyInput.value.trim());
-});
+  apiKeyInput.addEventListener("input", () => {
+    sessionStorage.setItem("HORROR_API_KEY", apiKeyInput.value.trim());
+  });
 </script>
 
 </body>
