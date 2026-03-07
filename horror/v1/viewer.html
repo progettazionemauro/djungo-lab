@@ -46,7 +46,10 @@
     td.rating-ottimo      { background:#2ecc71 !important; color:#111 !important; }
     td.rating-capolavoro  { background:#1abc9c !important; color:#111 !important; }
 
-    td.col-url { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px; }
+    td.col-url {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size:12px;
+    }
   </style>
 </head>
 <body>
@@ -65,7 +68,10 @@
       const cbName = "cb_" + Math.random().toString(36).slice(2);
       const script = document.createElement("script");
 
-      const t = setTimeout(() => { cleanup(); reject(new Error("Timeout JSONP")); }, 15000);
+      const t = setTimeout(() => {
+        cleanup();
+        reject(new Error("Timeout JSONP"));
+      }, 15000);
 
       function cleanup() {
         clearTimeout(t);
@@ -73,14 +79,21 @@
         script.remove();
       }
 
-      window[cbName] = (data) => { cleanup(); resolve(data); };
+      window[cbName] = (data) => {
+        cleanup();
+        resolve(data);
+      };
 
       const u = new URL(url);
       u.searchParams.set("cb", cbName);
       u.searchParams.set("_", Date.now().toString());
 
       script.src = u.toString();
-      script.onerror = () => { cleanup(); reject(new Error("JSONP load error")); };
+      script.onerror = () => {
+        cleanup();
+        reject(new Error("JSONP load error"));
+      };
+
       document.body.appendChild(script);
     });
   }
@@ -91,12 +104,10 @@
     ));
   }
 
-  // Normalizza header: trim + lower + spazi collassati
   function normHeader_(h) {
     return String(h ?? "").trim().toLowerCase().replace(/\s+/g, " ");
   }
 
-  // Trova indice colonna per keyword (robusto su spazi/case)
   function findCol_(headers, keyword) {
     const key = String(keyword).toLowerCase();
     for (let i = 0; i < headers.length; i++) {
@@ -145,13 +156,11 @@
       // più recente in alto
       const rows = rowsRaw.slice().reverse();
 
-      // indici robusti
       const idxTitle  = findCol_(headers, "title");
       const idxLink   = findCol_(headers, "link");
       const idxUrl    = findCol_(headers, "url");
       const idxRating = findCol_(headers, "rating");
 
-      // DEBUG: mostra cosa ha trovato (così capiamo subito se idx=-1)
       status.textContent =
         `OK | cols: title=${idxTitle}, link=${idxLink}, url=${idxUrl}, rating=${idxRating} | headers=` +
         headers.map(h => `"${String(h)}"`).join(", ");
@@ -163,7 +172,13 @@
       for (let rI = 0; rI < rows.length; rI++) {
         const r = rows[rI];
 
-        const url = (idxUrl >= 0) ? String(r[idxUrl] ?? "").trim() : "";
+        let url = (idxUrl >= 0) ? String(r[idxUrl] ?? "").trim() : "";
+
+        // fallback frontend: se l'utente ha scritto solo www.qualcosa
+        if (/^www\./i.test(url)) {
+          url = "https://" + url;
+        }
+
         const urlOk = /^https?:\/\//i.test(url);
 
         const trClass = (rI === 0) ? "first-row" : "";
@@ -173,13 +188,13 @@
           const cellVal = r[c];
           let content = esc(cellVal);
 
-          // Title cliccabile verso url
+          // TITLE cliccabile usando la colonna url
           if (c === idxTitle && urlOk) {
             const text = String(cellVal ?? "").trim() || "open";
             content = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
           }
 
-          // Colonna link cliccabile verso url (anche se nel foglio è testo)
+          // LINK cliccabile anch'esso verso url
           if (c === idxLink && urlOk) {
             const text = String(cellVal ?? "").trim() || "open";
             content = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
@@ -205,6 +220,9 @@
 
   load();
 </script>
+
+</body>
+</html>
 
 </body>
 </html>
