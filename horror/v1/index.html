@@ -20,7 +20,7 @@
     .err { color:#b00; font-weight:800; }
     iframe { width:100%; height:560px; border:1px solid #ddd; border-radius:10px; background:#fff; }
     small { display:block; margin-top:8px; color:#666; }
-    pre { background:#0b0b0b;color:#d6ffd6;border-radius:10px;padding:12px;overflow:auto; }
+    pre { background:#0b0b0b; color:#d6ffd6; border-radius:10px; padding:12px; overflow:auto; }
   </style>
 </head>
 <body>
@@ -28,7 +28,7 @@
   <h1>HorrorAtlas <span class="muted">— v1</span></h1>
   <p class="muted">
     Backend: Google Apps Script (JSONP) → tab <b>HorrorMovie</b>.
-    <br/>Read: pubblico. Write: protetto da <code>apiKey</code>.
+    <br>Read: pubblico. Write: protetto da <code>apiKey</code>.
   </p>
 
   <div class="card">
@@ -126,15 +126,24 @@
   // ===== CONFIG FISSA =====
   const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw0gMuclE-_uT418g20PQ0V3i4yrJM4sumRmhiuZdi3sK4WglWMyEdj_YlfyiD9UJHA/exec";
 
-  function setMsg(el, msg, cls) { el.className = cls || "muted"; el.textContent = msg; }
-  function makeCbName() { return "cb_" + Date.now() + "_" + Math.floor(Math.random()*1e6); }
+  function setMsg(el, msg, cls) {
+    el.className = cls || "muted";
+    el.textContent = msg;
+  }
+
+  function makeCbName() {
+    return "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
+  }
 
   function jsonp(url) {
     return new Promise((resolve, reject) => {
       const cbName = makeCbName();
       const script = document.createElement("script");
 
-      const t = setTimeout(() => { cleanup(); reject(new Error("Timeout JSONP")); }, 15000);
+      const t = setTimeout(() => {
+        cleanup();
+        reject(new Error("Timeout JSONP"));
+      }, 15000);
 
       function cleanup() {
         clearTimeout(t);
@@ -142,14 +151,21 @@
         script.remove();
       }
 
-      window[cbName] = (data) => { cleanup(); resolve(data); };
+      window[cbName] = (data) => {
+        cleanup();
+        resolve(data);
+      };
 
       const u = new URL(url);
       u.searchParams.set("cb", cbName);
       u.searchParams.set("_", Date.now().toString());
 
       script.src = u.toString();
-      script.onerror = () => { cleanup(); reject(new Error("JSONP load error (check /exec + access)")); };
+      script.onerror = () => {
+        cleanup();
+        reject(new Error("JSONP load error (check /exec + access)"));
+      };
+
       document.body.appendChild(script);
     });
   }
@@ -172,6 +188,7 @@
   }
 
   const out = document.getElementById("out");
+  const viewer = document.getElementById("viewer");
 
   async function call_(mode, params = {}, needsKey = false) {
     const u = new URL(baseUrl_());
@@ -183,30 +200,6 @@
     return resp;
   }
 
-  // meta/schema
-  document.getElementById("pingBtn").addEventListener("click", async () => {
-    try {
-      setMsg(document.getElementById("cfgStatus"), "Calling meta…");
-      const r = await call_("meta", {}, false);
-      setMsg(document.getElementById("cfgStatus"), r.ok ? "OK meta" : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
-    } catch (e) {
-      setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err");
-    }
-  });
-
-  document.getElementById("schemaBtn").addEventListener("click", async () => {
-    try {
-      setMsg(document.getElementById("cfgStatus"), "Calling schema…");
-      const r = await call_("schema", {}, false);
-      setMsg(document.getElementById("cfgStatus"), r.ok ? "OK schema" : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
-    } catch (e) {
-      setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err");
-    }
-  });
-
-  // Viewer
-  const viewer = document.getElementById("viewer");
-
   function loadViewer(cacheBust) {
     viewer.src = viewerUrl_(cacheBust);
   }
@@ -215,13 +208,50 @@
     setTimeout(() => loadViewer(true), delayMs);
   }
 
-  loadViewer(false);
+  function normalizeInsertError_(resp) {
+    if (!resp || resp.ok === true) return "";
+    if (resp.error === "Duplicate record") {
+      return `Record duplicato: "${resp.title}" (${resp.year})`;
+    }
+    return resp.error || "Errore sconosciuto";
+  }
 
-  // insert
+  // ===== META =====
+  document.getElementById("pingBtn").addEventListener("click", async () => {
+    try {
+      setMsg(document.getElementById("cfgStatus"), "Calling meta…");
+      const r = await call_("meta", {}, false);
+      setMsg(
+        document.getElementById("cfgStatus"),
+        r.ok ? "OK meta" : ("ERR: " + (r.error || "")),
+        r.ok ? "ok" : "err"
+      );
+    } catch (e) {
+      setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err");
+    }
+  });
+
+  // ===== SCHEMA =====
+  document.getElementById("schemaBtn").addEventListener("click", async () => {
+    try {
+      setMsg(document.getElementById("cfgStatus"), "Calling schema…");
+      const r = await call_("schema", {}, false);
+      setMsg(
+        document.getElementById("cfgStatus"),
+        r.ok ? "OK schema" : ("ERR: " + (r.error || "")),
+        r.ok ? "ok" : "err"
+      );
+    } catch (e) {
+      setMsg(document.getElementById("cfgStatus"), "ERR: " + e.message, "err");
+    }
+  });
+
+  // ===== INSERT =====
   document.getElementById("insertBtn").addEventListener("click", async () => {
     const st = document.getElementById("insertStatus");
     try {
       setMsg(st, "Inserting…");
+
       const payload = {
         year: document.getElementById("year").value.trim(),
         title: document.getElementById("title").value.trim(),
@@ -233,10 +263,12 @@
       console.log("INSERT payload =", payload);
 
       const r = await call_("insert", payload, true);
-      setMsg(st, r.ok ? `OK inserted id=${r.id}` : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
 
       if (r.ok) {
+        setMsg(st, `OK inserted id=${r.id}`, "ok");
         refreshViewerSoon();
+      } else {
+        setMsg(st, "ERR: " + normalizeInsertError_(r), "err");
       }
 
     } catch (e) {
@@ -244,14 +276,20 @@
     }
   });
 
-  // getById
+  // ===== GET BY ID =====
   document.getElementById("getBtn").addEventListener("click", async () => {
     const st = document.getElementById("crudStatus");
     try {
       const id = document.getElementById("id").value.trim();
       setMsg(st, "Loading…");
+
       const r = await call_("getById", { id }, true);
-      setMsg(st, r.ok ? `OK loaded id=${id}` : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
+
+      setMsg(
+        st,
+        r.ok ? `OK loaded id=${id}` : ("ERR: " + (r.error || "")),
+        r.ok ? "ok" : "err"
+      );
 
       if (r.ok && r.record) {
         document.getElementById("year").value = r.record.year || "";
@@ -265,7 +303,7 @@
     }
   });
 
-  // update
+  // ===== UPDATE =====
   document.getElementById("updateBtn").addEventListener("click", async () => {
     const st = document.getElementById("crudStatus");
     try {
@@ -282,7 +320,12 @@
       };
 
       const r = await call_("update", payload, true);
-      setMsg(st, r.ok ? `OK updated id=${id}` : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
+
+      setMsg(
+        st,
+        r.ok ? `OK updated id=${id}` : ("ERR: " + (r.error || "")),
+        r.ok ? "ok" : "err"
+      );
 
       if (r.ok) {
         refreshViewerSoon();
@@ -293,7 +336,7 @@
     }
   });
 
-  // delete
+  // ===== DELETE =====
   document.getElementById("deleteBtn").addEventListener("click", async () => {
     const st = document.getElementById("crudStatus");
     try {
@@ -302,8 +345,14 @@
       if (!confirm(`Delete id=${id}?`)) return;
 
       setMsg(st, "Deleting…");
+
       const r = await call_("delete", { id }, true);
-      setMsg(st, r.ok ? `OK deleted id=${id}` : ("ERR: " + (r.error || "")), r.ok ? "ok" : "err");
+
+      setMsg(
+        st,
+        r.ok ? `OK deleted id=${id}` : ("ERR: " + (r.error || "")),
+        r.ok ? "ok" : "err"
+      );
 
       if (r.ok) {
         refreshViewerSoon();
@@ -314,12 +363,13 @@
     }
   });
 
-  // ===============================
-  // MEMORIZZA apiKey SOLO PER QUESTA SESSIONE
-  // ===============================
-  const apiKeyInput = document.getElementById("apiKey");
+  // ===== VIEWER START =====
+  loadViewer(false);
 
+  // ===== MEMORIZZA apiKey SOLO PER QUESTA SESSIONE =====
+  const apiKeyInput = document.getElementById("apiKey");
   const savedKey = sessionStorage.getItem("HORROR_API_KEY");
+
   if (savedKey && !apiKeyInput.value) {
     apiKeyInput.value = savedKey;
   }
