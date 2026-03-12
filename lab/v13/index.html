@@ -1,1 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 
+<!-- =========================================================
+DJUNGO — VERSIONING RULE
+- lab/v13/index.html = Part 13
+- Questa pagina rappresenta SOLO la Part 13
+- No mock mode: Part 13 is live-only
+========================================================= -->
+<title>Djungo Console — Part 13</title>
+
+<style>
+  body {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    max-width: 980px;
+    margin: 28px auto;
+    padding: 0 16px;
+  }
+  h1 { margin: 0 0 8px; }
+  .muted { opacity: .75; }
+  .card {
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 14px;
+    margin: 12px 0;
+  }
+  label {
+    display:block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    opacity:.85;
+  }
+  input, select, textarea {
+    width:100%;
+    padding:10px;
+    border:1px solid #ccc;
+    border-radius:10px;
+    box-sizing:border-box;
+    font: inherit;
+  }
+  textarea {
+    min-height: 90px;
+    resize: vertical;
+  }
+  button {
+    padding:10px 12px;
+    border-radius:10px;
+    border:1px solid #111;
+    background:#111;
+    color:#fff;
+    cursor:pointer;
+  }
+  button.secondary {
+    background:#fff;
+    color:#111;
+  }
+  pre {
+    background:#0b0b0b;
+    color:#d6ffd6;
+    border-radius:12px;
+    padding:12px;
+    overflow:auto;
+  }
+  .row {
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:12px;
+  }
+  a { color: inherit; }
+</style>
+</head>
+
+<body>
+
+<h1 id="h1Title">Djungo Console <span class="muted">— Part ?</span></h1>
+
+<div class="muted" style="margin-top:6px;">
+  ← Back to previous playground: <a id="backLink" href="../v12/index.html">Part 12</a>
+</div>
+
+<div class="muted" id="subtitle" style="margin-top:10px;">
+  Part 13: connect the real dataset — insert validated records into the live sheet and read active rows back.
+</div>
+
+<div class="card">
+  <label for="webAppUrl">WEB_APP_URL (Apps Script Web App)</label>
+  <input id="webAppUrl" placeholder="https://script.google.com/macros/s/DEPLOY_ID/exec" />
+
+  <div class="row">
+    <div>
+      <label for="mode">mode</label>
+      <select id="mode">
+        <option value="insert" selected>insert</option>
+        <option value="view">view</option>
+      </select>
+    </div>
+    <div>
+      <label for="limit">limit (only for view)</label>
+      <input id="limit" type="number" min="1" max="200" value="20" />
+    </div>
+  </div>
+
+  <label for="title">title</label>
+  <input id="title" placeholder="Example: Supplier instability in Q3" />
+
+  <label for="context">context</label>
+  <input id="context" placeholder="Example: supply chain / procurement" />
+
+  <label for="note">note</label>
+  <textarea id="note" placeholder="Optional note or explanation"></textarea>
+
+  <div class="muted" style="margin-top:10px; line-height:1.45;">
+    <div><b>How to use this playground:</b></div>
+    <div>1) Paste your Apps Script Web App URL ending with <b>/exec</b>.</div>
+    <div>2) Use <b>insert</b> to send a real record to the DATA sheet.</div>
+    <div>3) Use <b>view</b> to read back active records from the live backend.</div>
+    <div>4) If insert fails, inspect the structured error response: validation is part of the system now.</div>
+  </div>
+
+  <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+    <button id="runBtn">Run</button>
+    <button id="fillSampleBtn" type="button" class="secondary">Fill sample payload</button>
+    <button id="clearBtn" type="button" class="secondary">Clear fields</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="muted">Generated URL</div>
+  <pre id="urlOut"></pre>
+</div>
+
+<div class="card">
+  <div class="muted">Response</div>
+  <pre id="respOut"></pre>
+</div>
+
+<script>
+/* ============================================================
+SECTION 1 — PAGE IDENTITY
+============================================================ */
+const LAB_PART  = 13;
+const BACK_PART = 12;
+
+(function initPageIdentity(){
+  document.title = `Djungo Console — Part ${LAB_PART}`;
+  document.querySelector("#h1Title").innerHTML =
+    `Djungo Console <span class="muted">— Part ${LAB_PART}</span>`;
+
+  const back = document.querySelector("#backLink");
+  back.textContent = `Part ${BACK_PART}`;
+  back.href = `../v${BACK_PART}/index.html`;
+})();
+
+/* ============================================================
+SECTION 2 — JSONP CORE
+============================================================ */
+function makeCbName() {
+  return "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
+}
+
+function jsonpRequest(url, cbName) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+
+    window[cbName] = (data) => {
+      try {
+        resolve(data);
+      } finally {
+        delete window[cbName];
+        script.remove();
+      }
+    };
+
+    script.src = url;
+
+    script.onerror = () => {
+      delete window[cbName];
+      script.remove();
+      reject(new Error("JSONP load/network error (check: /exec URL + deployment access + doGet)"));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+/* ============================================================
+SECTION 3 — BUILD LIVE URL
+Part 13 is live-only.
+============================================================ */
+function buildUrlLive_() {
+  const base = document.getElementById("webAppUrl").value.trim();
+  if (!base) throw new Error("Missing WEB_APP_URL");
+
+  const mode = document.getElementById("mode").value;
+  const cb = makeCbName();
+  const u = new URL(base);
+
+  u.searchParams.set("part", String(LAB_PART));
+  u.searchParams.set("mode", mode);
+  u.searchParams.set("cb", cb);
+  u.searchParams.set("_", Date.now().toString());
+
+  if (mode === "view") {
+    const limit = document.getElementById("limit").value;
+    u.searchParams.set("limit", limit || "20");
+  }
+
+  if (mode === "insert") {
+    u.searchParams.set("title", document.getElementById("title").value.trim());
+    u.searchParams.set("context", document.getElementById("context").value.trim());
+    u.searchParams.set("note", document.getElementById("note").value.trim());
+  }
+
+  return { url: u.toString(), cb };
+}
+
+/* ============================================================
+SECTION 4 — RUN
+============================================================ */
+const urlOut  = document.getElementById("urlOut");
+const respOut = document.getElementById("respOut");
+
+document.getElementById("runBtn").addEventListener("click", async () => {
+  try {
+    const { url, cb } = buildUrlLive_();
+    urlOut.textContent = url;
+
+    const data = await jsonpRequest(url, cb);
+    respOut.textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    respOut.textContent = "ERROR: " + (e && e.message ? e.message : String(e));
+  }
+});
+
+/* ============================================================
+SECTION 5 — HELPERS
+============================================================ */
+document.getElementById("fillSampleBtn").addEventListener("click", () => {
+  document.getElementById("title").value = "Supplier instability in Q3";
+  document.getElementById("context").value = "Supply chain / procurement";
+  document.getElementById("note").value = "Detected repeated delays from two critical suppliers during the quarter.";
+});
+
+document.getElementById("clearBtn").addEventListener("click", () => {
+  document.getElementById("title").value = "";
+  document.getElementById("context").value = "";
+  document.getElementById("note").value = "";
+  document.getElementById("limit").value = "20";
+  document.getElementById("mode").value = "insert";
+  urlOut.textContent = "";
+  respOut.textContent = "";
+});
+</script>
+
+</body>
+</html>
