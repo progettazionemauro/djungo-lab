@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Djungo Playground — Part 14</title>
+
+<style>
+
+body{
+font-family:system-ui;
+max-width:900px;
+margin:auto;
+padding:30px;
+}
+
+input,button{
+padding:8px;
+margin:4px;
+}
+
+pre{
+background:#f5f5f5;
+padding:10px;
+}
+
+</style>
+</head>
+
+<body>
+
+<h2>Djungo Playground — Part 14</h2>
+
+<div>
+
+<label>WEB_APP_URL</label><br>
+<input id="url" size="70"><br>
+
+<label>ID</label><br>
+<input id="id"><br>
+
+<button onclick="deleteRec()">Delete</button>
+<button onclick="restoreRec()">Restore</button>
+<button onclick="viewRec()">View</button>
+
+</div>
+
+<pre id="out"></pre>
+
+<script>
+
+function jsonp(url){
+
+return new Promise((resolve,reject)=>{
+
+const cb="cb_"+Date.now()
+
+window[cb]=(data)=>{
+resolve(data)
+delete window[cb]
+script.remove()
+}
+
+const script=document.createElement("script")
+
+script.src=url+"&cb="+cb
+
+script.onerror=()=>reject("JSONP load error")
+
+document.body.appendChild(script)
+
+})
+
+}
+
+function baseUrl(){
+
+return document.getElementById("url").value
+
+}
+
+function deleteRec(){
+
+const id=document.getElementById("id").value
+
+const url=`${baseUrl()}?part=14&mode=delete&id=${id}`
+
+jsonp(url).then(show)
+
+}
+
+function restoreRec(){
+
+const id=document.getElementById("id").value
+
+const url=`${baseUrl()}?part=14&mode=restore&id=${id}`
+
+jsonp(url).then(show)
+
+}
+
+function viewRec(){
+
+const url=`${baseUrl()}?part=14&mode=view&limit=20`
+
+jsonp(url).then(show)
+
+}
+
+function show(data){
+
+document.getElementById("out").textContent=
+JSON.stringify(data,null,2)
+
+}
+
+</script>
+
+</body>
+</html>
