@@ -37,7 +37,8 @@
       font-weight: 600;
     }
 
-    thead input.filter-input {
+    thead input.filter-input,
+    thead select.filter-select {
       width: 100%;
       box-sizing: border-box;
       padding: 6px 7px;
@@ -164,18 +165,17 @@
   }
 
   function uniqueValues_(rows, colIndex) {
-  const set = new Set();
-  rows.forEach(r => {
-    const v = String(r[colIndex] ?? "").trim();
-    if (v) set.add(v);
-  });
-  return Array.from(set).sort((a, b) => {
-    // numerico se possibile (per year)
-    const na = Number(a), nb = Number(b);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    return a.localeCompare(b);
-  });
-}
+    const set = new Set();
+    rows.forEach(r => {
+      const v = String(r[colIndex] ?? "").trim();
+      if (v) set.add(v);
+    });
+    return Array.from(set).sort((a, b) => {
+      const na = Number(a), nb = Number(b);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+  }
 
   function ratingClass_(val) {
     const v = String(val ?? "").trim().toLowerCase();
@@ -190,12 +190,18 @@
   }
 
   function getFilters_() {
-    const inputs = document.querySelectorAll(".filter-input");
     const filters = {};
-    inputs.forEach(inp => {
+
+    document.querySelectorAll(".filter-input").forEach(inp => {
       const idx = Number(inp.dataset.colIndex);
       filters[idx] = inp.value.trim().toLowerCase();
     });
+
+    document.querySelectorAll(".filter-select").forEach(sel => {
+      const idx = Number(sel.dataset.colIndex);
+      filters[idx] = sel.value.trim().toLowerCase();
+    });
+
     return filters;
   }
 
@@ -209,76 +215,94 @@
     return true;
   }
 
-  function buildFilterRow_(headers, rows) {
-  const idxYear   = findCol_(headers, "year");
-  const idxTitle  = findCol_(headers, "title");
-  const idxNation = findCol_(headers, "nation");
+  function buildFilterRow_(headers, allRows) {
+    const idxYear   = findCol_(headers, "year");
+    const idxTitle  = findCol_(headers, "title");
+    const idxNation = findCol_(headers, "nation");
 
-  const yearVals   = idxYear   >= 0 ? uniqueValues_(rows, idxYear)   : [];
-  const titleVals  = idxTitle  >= 0 ? uniqueValues_(rows, idxTitle)  : [];
-  const nationVals = idxNation >= 0 ? uniqueValues_(rows, idxNation) : [];
+    const yearVals   = idxYear   >= 0 ? uniqueValues_(allRows, idxYear)   : [];
+    const titleVals  = idxTitle  >= 0 ? uniqueValues_(allRows, idxTitle)  : [];
+    const nationVals = idxNation >= 0 ? uniqueValues_(allRows, idxNation) : [];
 
-  let html = '<tr class="filter-row">';
+    let html = '<tr class="filter-row">';
 
-  for (let i = 0; i < headers.length; i++) {
+    for (let i = 0; i < headers.length; i++) {
 
-    // YEAR dropdown
-    if (i === idxYear) {
+      if (i === idxYear) {
+        html += `
+          <th>
+            <select class="filter-select" data-col-index="${i}">
+              <option value="">all years</option>
+              ${yearVals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
+            </select>
+          </th>
+        `;
+        continue;
+      }
+
+      if (i === idxTitle) {
+        html += `
+          <th>
+            <select class="filter-select" data-col-index="${i}">
+              <option value="">all titles</option>
+              ${titleVals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
+            </select>
+          </th>
+        `;
+        continue;
+      }
+
+      if (i === idxNation) {
+        html += `
+          <th>
+            <select class="filter-select" data-col-index="${i}">
+              <option value="">all nations</option>
+              ${nationVals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
+            </select>
+          </th>
+        `;
+        continue;
+      }
+
       html += `
         <th>
-          <select class="filter-select" data-col-index="${i}">
-            <option value="">all years</option>
-            ${yearVals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
-          </select>
+          <input
+            class="filter-input"
+            type="text"
+            data-col-index="${i}"
+            placeholder="filter ${esc(headers[i])}"
+          />
         </th>
       `;
-      continue;
     }
 
-    // TITLE dropdown
-    if (i === idxTitle) {
-      html += `
-        <th>
-          <select class="filter-select" data-col-index="${i}">
-            <option value="">all titles</option>
-            ${titleVals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
-          </select>
-        </th>
-      `;
-      continue;
-    }
-
-    // NATION dropdown
-    if (i === idxNation) {
-      html += `
-        <th>
-          <select class="filter-select" data-col-index="${i}">
-            <option value="">all nations</option>
-            ${nationVals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
-          </select>
-        </th>
-      `;
-      continue;
-    }
-
-    // default input
-    html += `
-      <th>
-        <input
-          class="filter-input"
-          type="text"
-          data-col-index="${i}"
-          placeholder="filter ${esc(headers[i])}"
-        />
-      </th>
-    `;
+    html += "</tr>";
+    return html;
   }
 
-  html += "</tr>";
-  return html;
-}
+  function restoreFilterValues_(filters) {
+    document.querySelectorAll(".filter-input").forEach(inp => {
+      const idx = Number(inp.dataset.colIndex);
+      inp.value = filters[idx] || "";
+    });
 
-  function renderTable(rows) {
+    document.querySelectorAll(".filter-select").forEach(sel => {
+      const idx = Number(sel.dataset.colIndex);
+      sel.value = filters[idx] || "";
+    });
+  }
+
+  function bindFilterEvents_() {
+    document.querySelectorAll(".filter-input").forEach(inp => {
+      inp.addEventListener("input", applyFilters);
+    });
+
+    document.querySelectorAll(".filter-select").forEach(sel => {
+      sel.addEventListener("change", applyFilters);
+    });
+  }
+
+  function renderTable(rows, filters = {}) {
     const tbl = document.getElementById("tbl");
     const status = document.getElementById("status");
 
@@ -292,7 +316,7 @@
     html += '<tr class="head-row">';
     for (const h of headers) html += `<th>${esc(h)}</th>`;
     html += "</tr>";
-    html += buildFilterRow_(headers);
+    html += buildFilterRow_(headers, rowsGlobal);
     html += "</thead><tbody>";
 
     for (let rI = 0; rI < rows.length; rI++) {
@@ -334,9 +358,8 @@
     html += "</tbody></table>";
     tbl.innerHTML = html;
 
-    document.querySelectorAll(".filter-input").forEach(inp => {
-      inp.addEventListener("input", applyFilters);
-    });
+    bindFilterEvents_();
+    restoreFilterValues_(filters);
 
     status.textContent = `Rows shown: ${rows.length} / ${rowsGlobal.length}`;
   }
@@ -344,13 +367,7 @@
   function applyFilters() {
     const filters = getFilters_();
     const filtered = rowsGlobal.filter(row => rowMatchesFilters_(row, filters));
-    renderTable(filtered);
-
-    // ripristina i valori dei filtri dopo il re-render
-    document.querySelectorAll(".filter-input").forEach(inp => {
-      const idx = Number(inp.dataset.colIndex);
-      inp.value = filters[idx] || "";
-    });
+    renderTable(filtered, filters);
   }
 
   async function load() {
@@ -375,7 +392,7 @@
       headersGlobal = resp.headers || [];
       rowsGlobal = (resp.rows || []).slice().reverse();
 
-      renderTable(rowsGlobal);
+      renderTable(rowsGlobal, {});
 
     } catch (e) {
       status.textContent = "Errore: " + e.message;
@@ -383,7 +400,7 @@
   }
 
   document.getElementById("clearFiltersBtn").addEventListener("click", () => {
-    renderTable(rowsGlobal);
+    renderTable(rowsGlobal, {});
   });
 
   load();
