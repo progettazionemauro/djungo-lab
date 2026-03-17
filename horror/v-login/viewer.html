@@ -163,6 +163,20 @@
     return -1;
   }
 
+  function uniqueValues_(rows, colIndex) {
+  const set = new Set();
+  rows.forEach(r => {
+    const v = String(r[colIndex] ?? "").trim();
+    if (v) set.add(v);
+  });
+  return Array.from(set).sort((a, b) => {
+    // numerico se possibile (per year)
+    const na = Number(a), nb = Number(b);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
+}
+
   function ratingClass_(val) {
     const v = String(val ?? "").trim().toLowerCase();
     if (!v) return "";
@@ -195,23 +209,74 @@
     return true;
   }
 
-  function buildFilterRow_(headers) {
-    let html = '<tr class="filter-row">';
-    for (let i = 0; i < headers.length; i++) {
+  function buildFilterRow_(headers, rows) {
+  const idxYear   = findCol_(headers, "year");
+  const idxTitle  = findCol_(headers, "title");
+  const idxNation = findCol_(headers, "nation");
+
+  const yearVals   = idxYear   >= 0 ? uniqueValues_(rows, idxYear)   : [];
+  const titleVals  = idxTitle  >= 0 ? uniqueValues_(rows, idxTitle)  : [];
+  const nationVals = idxNation >= 0 ? uniqueValues_(rows, idxNation) : [];
+
+  let html = '<tr class="filter-row">';
+
+  for (let i = 0; i < headers.length; i++) {
+
+    // YEAR dropdown
+    if (i === idxYear) {
       html += `
         <th>
-          <input
-            class="filter-input"
-            type="text"
-            data-col-index="${i}"
-            placeholder="filter ${esc(headers[i])}"
-          />
+          <select class="filter-select" data-col-index="${i}">
+            <option value="">all years</option>
+            ${yearVals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
+          </select>
         </th>
       `;
+      continue;
     }
-    html += "</tr>";
-    return html;
+
+    // TITLE dropdown
+    if (i === idxTitle) {
+      html += `
+        <th>
+          <select class="filter-select" data-col-index="${i}">
+            <option value="">all titles</option>
+            ${titleVals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
+          </select>
+        </th>
+      `;
+      continue;
+    }
+
+    // NATION dropdown
+    if (i === idxNation) {
+      html += `
+        <th>
+          <select class="filter-select" data-col-index="${i}">
+            <option value="">all nations</option>
+            ${nationVals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
+          </select>
+        </th>
+      `;
+      continue;
+    }
+
+    // default input
+    html += `
+      <th>
+        <input
+          class="filter-input"
+          type="text"
+          data-col-index="${i}"
+          placeholder="filter ${esc(headers[i])}"
+        />
+      </th>
+    `;
   }
+
+  html += "</tr>";
+  return html;
+}
 
   function renderTable(rows) {
     const tbl = document.getElementById("tbl");
