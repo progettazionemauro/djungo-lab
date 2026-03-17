@@ -18,7 +18,7 @@
       white-space: pre-wrap;
     }
 
-    thead th{
+    thead th {
       position: sticky;
       z-index: 2;
       background: #2f3b52;
@@ -49,8 +49,8 @@
       color: #111;
     }
 
-    tbody tr:nth-child(even){ background:#f6f8fb; }
-    tbody tr:nth-child(odd){ background:#ffffff; }
+    tbody tr:nth-child(even) { background:#f6f8fb; }
+    tbody tr:nth-child(odd)  { background:#ffffff; }
 
     tbody tr.first-row {
       background: #fff3cd !important;
@@ -165,11 +165,14 @@
   }
 
   function uniqueValues_(rows, colIndex) {
+    if (!Array.isArray(rows)) return [];
+
     const set = new Set();
     rows.forEach(r => {
       const v = String(r[colIndex] ?? "").trim();
       if (v) set.add(v);
     });
+
     return Array.from(set).sort((a, b) => {
       const na = Number(a), nb = Number(b);
       if (!isNaN(na) && !isNaN(nb)) return na - nb;
@@ -216,6 +219,8 @@
   }
 
   function buildFilterRow_(headers, allRows) {
+    if (!Array.isArray(allRows)) allRows = [];
+
     const idxYear   = findCol_(headers, "year");
     const idxTitle  = findCol_(headers, "title");
     const idxNation = findCol_(headers, "nation");
@@ -303,6 +308,8 @@
   }
 
   function renderTable(rows, filters = {}) {
+    if (!Array.isArray(rows)) rows = [];
+
     const tbl = document.getElementById("tbl");
     const status = document.getElementById("status");
 
@@ -389,8 +396,8 @@
         return;
       }
 
-      headersGlobal = resp.headers || [];
-      rowsGlobal = (resp.rows || []).slice().reverse();
+      headersGlobal = Array.isArray(resp.headers) ? resp.headers : [];
+      rowsGlobal = Array.isArray(resp.rows) ? resp.rows.slice().reverse() : [];
 
       renderTable(rowsGlobal, {});
 
